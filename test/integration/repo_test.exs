@@ -16,20 +16,29 @@ defmodule Ecto.Integration.RepoTest do
   alias Ecto.Integration.CompositePk
   alias Ecto.Integration.PostUserCompositePk
 
+  setup do
+    # TestRepo.delete_all(Post)
+    Bolt.Sips.query!(Bolt.Sips.conn(), "MATCH (n) DETACH DELETE n")
+    :ok
+  end
+
+  @tag :supported
   test "returns already started for started repos" do
     assert {:error, {:already_started, _}} = TestRepo.start_link()
   end
 
-  # test "supports unnamed repos" do
-  #   assert {:ok, pid} = TestRepo.start_link(name: nil)
-  #   assert Ecto.Repo.Queryable.all(pid, Post, []) == []
-  # end
+  test "supports unnamed repos" do
+    assert {:ok, pid} = TestRepo.start_link(name: nil)
+    assert Ecto.Repo.Queryable.all(pid, Post, []) == []
+  end
 
+  @tag :supported
   test "all empty" do
     assert TestRepo.all(Post) == []
     assert TestRepo.all(from(p in Post)) == []
   end
 
+  @tag :supported
   test "all with in" do
     TestRepo.insert!(%Post{title: "hello"})
 
