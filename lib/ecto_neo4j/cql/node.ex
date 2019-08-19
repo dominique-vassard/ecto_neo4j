@@ -1,6 +1,4 @@
 defmodule EctoNeo4j.Cql.Node do
-  alias EctoNeo4j.Cql.Helper
-
   @doc """
   Returns Cypher query to get one node given its uuid
 
@@ -118,28 +116,36 @@ defmodule EctoNeo4j.Cql.Node do
 
   ## Example
 
-      iex> primary_key = %{name: :id, value: 5}
-      iex> EctoNeo4j.Cql.Node.delete("Post", primary_key)
+      iex> EctoNeo4j.Cql.Node.delete("Post", %{uuid: "a-valid-uuid"})
       {"MATCH
-        (n:Post {id: {id}})
-      DETACH DELETE n
+        (n:Post)
+      WHERE
+        n.uuid = {uuid}
+      DETACH DELETE
+        n
       RETURN
-      n
-      ",%{id: 5}}
+        n
+      ", %{uuid: "a-valid-uuid"}}
   """
-  @spec delete(String.t(), %{name: atom(), value: any}) :: {String.t(), map()}
-  def delete(node_label, primary_key) do
+  @spec delete(String.t(), map()) :: {String.t(), map()}
+  def delete(node_label, filters) do
+    where =
+      filters
+      |> Enum.map(fn {k, _} -> "n.#{k} = {#{k}}" end)
+      |> Enum.join(" AND ")
+
     cql = """
     MATCH
-      (n:#{node_label} {#{primary_key.name}: {#{primary_key.name}}})
-    DETACH DELETE n
+      (n:#{node_label})
+    WHERE
+      #{where}
+    DETACH DELETE
+      n
     RETURN
-    n
+      n
     """
 
-    params = %{} |> Map.put(primary_key.name, primary_key.value)
-
-    {cql, params}
+    {cql, filters}
   end
 
   @doc """
@@ -148,9 +154,9 @@ defmodule EctoNeo4j.Cql.Node do
   ## Example
 
       # with default `where` and `return`
-      iex> EctoNeo4j.Cql.Node.build_query("Post")
+      iex> EctoNeo4j.Cql.Node.build_query(:match, "Post")
       "MATCH
-        (n:Post)\\n
+        (n:Post)\\n\\n
       RETURN
         n\\n
       "
@@ -159,17 +165,27 @@ defmodule EctoNeo4j.Cql.Node do
       iex> node_label = "Post"
       iex> where = "title = {title}"
       iex> return = "n"
-      iex> EctoNeo4j.Cql.Node.build_query(node_label, where, return)
+      iex> EctoNeo4j.Cql.Node.build_query(:match, node_label, where, return)
       "MATCH
         (n:Post)
       WHERE
-        title = {title}\\n
+        title = {title}\\n\\n
+      RETURN
+        n\\n
+      "
+
+      # for deleting
+      iex> EctoNeo4j.Cql.Node.build_query(:delete, "Post")
+      "MATCH
+        (n:Post)\\n
+      DETACH DELETE
+        n\\n
       RETURN
         n\\n
       "
   """
   @spec build_query(String.t(), String.t(), String.t(), String.t()) :: String.t()
-  def build_query(node_label, where \\ "", return \\ "n", order_by \\ "") do
+  def build_query(query_type, node_label, where \\ "", return \\ "n", order_by \\ "") do
     cql_where =
       if String.length(where) > 0 do
         """
@@ -186,10 +202,19 @@ defmodule EctoNeo4j.Cql.Node do
         """
       end
 
+    cql_delete =
+      if query_type == :delete do
+        """
+        DETACH DELETE
+          n
+        """
+      end
+
     """
     MATCH
       (n:#{node_label})
     #{cql_where}
+    #{cql_delete}
     RETURN
       #{return}
     #{cql_order_by}

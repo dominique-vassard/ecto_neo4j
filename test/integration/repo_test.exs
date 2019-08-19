@@ -93,6 +93,7 @@ defmodule Ecto.Integration.RepoTest do
              TestRepo.all(from(p in "posts", order_by: [desc: p.title], select: p.title))
   end
 
+  @tag :supported
   test "all shares metadata" do
     TestRepo.insert!(%Post{title: "title1"})
     TestRepo.insert!(%Post{title: "title2"})
@@ -105,11 +106,13 @@ defmodule Ecto.Integration.RepoTest do
     assert :erts_debug.same(post2.__meta__, new_post2.__meta__)
   end
 
-  @tag :invalid_prefix
+  @tag :supported
+  # @tag :invalid_prefix
   test "all with invalid prefix" do
     assert catch_error(TestRepo.all("posts", prefix: "oops"))
   end
 
+  @tag :supported
   test "insert, update and delete" do
     post = %Post{title: "insert, update, delete", text: "fetch empty"}
     meta = post.__meta__
@@ -128,6 +131,7 @@ defmodule Ecto.Integration.RepoTest do
     assert post.inserted_at
   end
 
+  @tag :supported
   test "insert, update and delete with field source" do
     permalink = %Permalink{url: "url"}
     assert %Permalink{url: "url"} = inserted = TestRepo.insert!(permalink)

@@ -3,32 +3,40 @@ defmodule EctoNeo4j.QueryBuilder do
   alias EctoNeo4j.Cql.Node, as: NodeCql
 
   @valid_operators [:==, :in, :>, :>=, :<, :<=]
-  def build(queryable_or_schema, sources, opts \\ [])
+  def build(query_type, queryable_or_schema, sources, opts \\ [])
 
-  def build(%Ecto.Query{} = query, sources, opts) do
+  def build(query_type, %Ecto.Query{} = query, sources, opts) do
     {source, _schema} = query.from.source
     wheres = query.wheres
 
-    cql_return = build_return(query.select.fields)
+    # query
+    # |> Map.from_struct()
+    # |> IO.inspect()
+
+    cql_return = build_return(query.select)
 
     {cql_where, params} = build_where(wheres, sources)
 
     cql_order_by = build_order_bys(query.order_bys)
 
-    cql = NodeCql.build_query(source, cql_where, cql_return, cql_order_by)
+    cql = NodeCql.build_query(query_type, source, cql_where, cql_return, cql_order_by)
 
     {cql, params}
   end
 
-  def build(schema, sources, opts) do
+  def build(query_type, schema, sources, opts) do
     query = from(s in schema)
-    build(query, sources, opts)
+    build(query_type, query, sources, opts)
   end
 
-  defp build_return(select_fields) do
+  defp build_return(%{fields: select_fields}) do
     select_fields
     |> Enum.map(&resolve_field_name/1)
     |> Enum.join(", ")
+  end
+
+  defp build_return(_) do
+    "n"
   end
 
   defp resolve_field_name({{:., _, [{:&, [], [0]}, field_name]}, [], []}) do
@@ -62,7 +70,7 @@ defmodule EctoNeo4j.QueryBuilder do
 
   defp do_build_where(
          {operator, _, [_, %Ecto.Query.Tagged{type: {_, field}, value: value}]},
-         sources,
+         _sources,
          inc
        ) do
     cql = "n.#{format_field(field)} #{format_operator(operator)} {param_#{inc}}"
@@ -85,6 +93,35 @@ defmodule EctoNeo4j.QueryBuilder do
   # end
 
   defp do_build_where(
+         {operator, _, [{{:., _, [{:&, _, _}, field]}, [], []}, {:^, _, [0]}]},
+         sources,
+         inc
+       ) do
+    cql = "n.#{format_field(field)} #{format_operator(operator)} {#{format_field(field)}}"
+
+    params =
+      %{}
+      |> Map.put(String.to_atom(format_field(field)), List.first(sources))
+
+    {cql, params, inc}
+  end
+
+  defp do_build_where(
+         {operator, _,
+          [{{:., _, [{:&, _, _}, field]}, [], []}, %Ecto.Query.Tagged{value: {:^, _, [0]}}]},
+         sources,
+         inc
+       ) do
+    cql = "n.#{format_field(field)} #{format_operator(operator)} {#{format_field(field)}}"
+
+    params =
+      %{}
+      |> Map.put(String.to_atom(format_field(field)), List.first(sources))
+
+    {cql, params, inc}
+  end
+
+  defp do_build_where(
          {operator, _, [{{:., _, [{:&, _, _}, field]}, [], []}, {:^, _, [s_index, s_length]}]},
          sources,
          inc
@@ -100,7 +137,7 @@ defmodule EctoNeo4j.QueryBuilder do
 
   defp do_build_where(
          {operator, _, [{{:., _, [{:&, _, _}, field]}, [], []}, value]},
-         sources,
+         _sources,
          inc
        ) do
     params =

@@ -4,13 +4,17 @@ defmodule EctoNeo4j.Behaviour.Queryable do
   alias EctoNeo4j.QueryBuilder
 
   def prepare(:all, query) do
-    {:nocache, query}
+    {:nocache, {:match, query}}
+  end
+
+  def prepare(:delete_all, query) do
+    {:nocache, {:delete, query}}
   end
 
   def execute(
         _repo,
         %{sources: {{_, _schema, _}}},
-        {:nocache, query},
+        {:nocache, {query_type, query}},
         sources,
         _preprocess,
         opts \\ []
@@ -19,7 +23,7 @@ defmodule EctoNeo4j.Behaviour.Queryable do
     # |> Map.from_struct()
     # |> IO.inspect()
 
-    {cypher_query, params} = QueryBuilder.build(query, sources, opts)
+    {cypher_query, params} = QueryBuilder.build(query_type, query, sources, opts)
     # |> IO.inspect()
 
     # do_execute(query)

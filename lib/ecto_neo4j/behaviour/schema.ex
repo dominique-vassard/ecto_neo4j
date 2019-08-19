@@ -5,7 +5,15 @@ defmodule EctoNeo4j.Behaviour.Schema do
   def autogenerate(:binary_id), do: Ecto.UUID.generate()
   def autogenerate(:embed_id), do: Ecto.UUID.generate()
 
-  def insert_all(adapter_meta, schema_meta, header, entries, on_conflict, returning, options) do
+  def insert_all(
+        _adapter_meta,
+        _schema_meta,
+        _header,
+        _entries,
+        _on_conflict,
+        _returning,
+        _options
+      ) do
     {0, []}
   end
 
@@ -19,9 +27,9 @@ defmodule EctoNeo4j.Behaviour.Schema do
     |> execute()
   end
 
-  def delete(adapter_meta, schema_meta, filters, _options) do
-    # {:ok, []}
-    {:error, :not_impmlemented}
+  def delete(_adapter_meta, %{source: source}, filters, _options) do
+    NodeCql.delete(source, format_data(filters))
+    |> execute()
   end
 
   defp execute({cql, params}) do
