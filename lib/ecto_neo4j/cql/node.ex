@@ -235,13 +235,21 @@ defmodule EctoNeo4j.Cql.Node do
         n
       "
   """
-  @spec build_query(String.t(), String.t(), String.t()) :: String.t()
-  def build_query(node_label, where \\ "", return \\ "n") do
+  @spec build_query(String.t(), String.t(), String.t(), String.t()) :: String.t()
+  def build_query(node_label, where \\ "", return \\ "n", order_by \\ "") do
     cql_where =
       if String.length(where) > 0 do
         """
         WHERE
           #{where}
+        """
+      end
+
+    cql_order_by =
+      if String.length(order_by) > 0 do
+        """
+        ORDER BY
+          #{order_by}
         """
       end
 
@@ -251,6 +259,7 @@ defmodule EctoNeo4j.Cql.Node do
     #{cql_where}
     RETURN
       #{return}
+    #{cql_order_by}
     """
   end
 end

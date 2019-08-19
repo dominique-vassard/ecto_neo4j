@@ -13,7 +13,9 @@ defmodule EctoNeo4j.QueryBuilder do
 
     {cql_where, params} = build_where(wheres, sources)
 
-    cql = NodeCql.build_query(source, cql_where, cql_return)
+    cql_order_by = build_order_bys(query.order_bys)
+
+    cql = NodeCql.build_query(source, cql_where, cql_return, cql_order_by)
 
     {cql, params}
   end
@@ -124,6 +126,28 @@ defmodule EctoNeo4j.QueryBuilder do
     cql = "#{cql1} #{Atom.to_string(operation)} #{cql2}"
     params = Map.merge(params1, params2)
     {cql, params, inc + 1}
+  end
+
+  defp build_order_bys([]) do
+    ""
+  end
+
+  defp build_order_bys([%Ecto.Query.QueryExpr{expr: expression}]) do
+    expression
+    |> Enum.map(fn {order, fields} ->
+      format_order_bys(fields)
+      |> Enum.map(fn o -> "#{o} #{order |> Atom.to_string() |> String.upcase()}" end)
+    end)
+    |> List.flatten()
+    |> Enum.join(", ")
+  end
+
+  defp format_order_bys(order_by_fields) when is_list(order_by_fields) do
+    Enum.map(order_by_fields, &resolve_field_name/1)
+  end
+
+  defp format_order_bys(order_by_fields) do
+    format_order_bys([order_by_fields])
   end
 
   defp format_operator(:==) do

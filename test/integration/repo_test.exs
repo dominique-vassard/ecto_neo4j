@@ -27,6 +27,7 @@ defmodule Ecto.Integration.RepoTest do
     assert {:error, {:already_started, _}} = TestRepo.start_link()
   end
 
+  @tag :unsupported
   test "supports unnamed repos" do
     assert {:ok, pid} = TestRepo.start_link(name: nil)
     assert Ecto.Repo.Queryable.all(pid, Post, []) == []
@@ -61,6 +62,7 @@ defmodule Ecto.Integration.RepoTest do
     end
   end
 
+  @tag :supported
   test "all using named from" do
     TestRepo.insert!(%Post{title: "hello"})
 
@@ -71,6 +73,7 @@ defmodule Ecto.Integration.RepoTest do
     assert [_] = TestRepo.all(query)
   end
 
+  @tag :supported
   test "all without schema" do
     %Post{} = TestRepo.insert!(%Post{title: "title1"})
     %Post{} = TestRepo.insert!(%Post{title: "title2"})
@@ -79,6 +82,15 @@ defmodule Ecto.Integration.RepoTest do
              TestRepo.all(from(p in "posts", order_by: p.title, select: p.title))
 
     assert [_] = TestRepo.all(from(p in "posts", where: p.title == "title1", select: p.id))
+  end
+
+  @tag :supported
+  test "additional orders test" do
+    %Post{} = TestRepo.insert!(%Post{title: "title1"})
+    %Post{} = TestRepo.insert!(%Post{title: "title2"})
+
+    assert ["title2", "title1"] =
+             TestRepo.all(from(p in "posts", order_by: [desc: p.title], select: p.title))
   end
 
   test "all shares metadata" do

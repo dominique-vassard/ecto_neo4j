@@ -9,32 +9,25 @@ defmodule EctoNeo4j.Behaviour.Queryable do
 
   def execute(
         _repo,
-        %{sources: {{_, schema, _}}},
+        %{sources: {{_, _schema, _}}},
         {:nocache, query},
         sources,
         _preprocess,
         opts \\ []
       ) do
-    {query, params} = QueryBuilder.build(query, sources, opts)
+    # query
+    # |> Map.from_struct()
+    # |> IO.inspect()
+
+    {cypher_query, params} = QueryBuilder.build(query, sources, opts)
+    # |> IO.inspect()
 
     # do_execute(query)
 
     res =
-      case query(query, params) do
+      case query(cypher_query, params) do
         {:ok, results} ->
-          results
-          |> Enum.map(fn
-            %{"n" => record} ->
-              to_struct(record, schema)
-
-            results ->
-              field_order = schema.__schema__(:fields)
-
-              Enum.into(field_order, [], fn key ->
-                {key, Map.fetch!(results, "n.#{Atom.to_string(key)}")}
-              end)
-              |> Keyword.values()
-          end)
+          Enum.map(results.results, &format_results(&1, query.select))
 
         {:error, error} ->
           raise error
@@ -42,6 +35,25 @@ defmodule EctoNeo4j.Behaviour.Queryable do
 
     {1, res}
   end
+
+  # defp format_results(%{"n" => record}, _, schema) do
+  #   to_struct(record, schema)
+  # end
+
+  defp format_results(results, %Ecto.Query.SelectExpr{fields: fields}) do
+    fields
+    |> Enum.map(fn {{:., _, [{:&, [], [0]}, field_atom]}, _, _} -> field_atom end)
+    |> Enum.into([], fn key ->
+      {key, Map.fetch!(results, "n.#{Atom.to_string(key)}")}
+    end)
+    |> Keyword.values()
+  end
+
+  # defp format_results(results, fields, _) do
+  # TODO
+  # results
+  # |> Enum.filter(fun)
+  # end
 
   # defp do_execute(queryable_or_model, opts \\ [])
 
@@ -166,15 +178,15 @@ defmodule EctoNeo4j.Behaviour.Queryable do
   #   Atom.to_string(operator)
   # end
 
-  defp to_struct(result, struct_model) do
-    props =
-      result.properties
-      |> Enum.map(fn {k, v} -> {String.to_atom(k), v} end)
-      |> Map.new()
-      |> manage_id()
+  # defp to_struct(result, struct_model) do
+  #   props =
+  #     result.properties
+  #     |> Enum.map(fn {k, v} -> {String.to_atom(k), v} end)
+  #     |> Map.new()
+  #     |> manage_id()
 
-    struct(struct_model, props)
-  end
+  #   struct(struct_model, props)
+  # end
 
   @doc """
   Launch the given query with params on database.
@@ -203,14 +215,14 @@ defmodule EctoNeo4j.Behaviour.Queryable do
     end)
   end
 
-  @spec manage_id(map()) :: map()
-  defp manage_id(%{nodeId: node_id} = data) do
-    data
-    |> Map.put(:id, node_id)
-    |> Map.drop([:node_id])
-  end
+  # @spec manage_id(map()) :: map()
+  # defp manage_id(%{nodeId: node_id} = data) do
+  #   data
+  #   |> Map.put(:id, node_id)
+  #   |> Map.drop([:node_id])
+  # end
 
-  defp manage_id(data), do: data
+  # defp manage_id(data), do: data
 
   # defp format_field(:id), do: :nodeId
   # defp format_field(field), do: field
