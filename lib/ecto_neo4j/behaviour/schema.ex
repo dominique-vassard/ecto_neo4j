@@ -10,13 +10,21 @@ defmodule EctoNeo4j.Behaviour.Schema do
   end
 
   def insert(_adapter, %{source: source}, fields, _on_conflict, _returning, _opts \\ []) do
-    data =
-      fields
-      |> Map.new()
-      |> manage_id()
+    NodeCql.insert(source, format_data(fields))
+    |> execute()
+  end
 
-    {cql, params} = NodeCql.insert_new(source, data)
+  def update(_adapter_meta, %{source: source}, fields, filters, _returning, _options) do
+    NodeCql.update(source, format_data(fields), format_data(filters))
+    |> execute()
+  end
 
+  def delete(adapter_meta, schema_meta, filters, _options) do
+    # {:ok, []}
+    {:error, :not_impmlemented}
+  end
+
+  defp execute({cql, params}) do
     case EctoNeo4j.Behaviour.Queryable.query(cql, params) do
       {:ok, %Bolt.Sips.Response{results: [%{"n" => _record}]}} ->
         {:ok, []}
@@ -26,12 +34,10 @@ defmodule EctoNeo4j.Behaviour.Schema do
     end
   end
 
-  def update(adapter_meta, schema_meta, fields, filters, [] = returning, _options) do
-    {:ok, []}
-  end
-
-  def delete(adapter_meta, schema_meta, filters, _options) do
-    {:ok, []}
+  defp format_data(data) do
+    data
+    |> Map.new()
+    |> manage_id()
   end
 
   defp manage_node_id(%{nodeId: node_id} = data) do
@@ -45,4 +51,6 @@ defmodule EctoNeo4j.Behaviour.Schema do
     |> Map.put(:node_id, id)
     |> Map.drop([:id])
   end
+
+  defp manage_id(data), do: data
 end
