@@ -19,9 +19,7 @@ defmodule EctoNeo4j.Behaviour.Queryable do
         _preprocess,
         opts \\ []
       ) do
-    # query
-    # |> Map.from_struct()
-    # |> IO.inspect()
+    # quers.inspect()
 
     {cypher_query, params} = QueryBuilder.build(query_type, query, sources, opts)
     # |> IO.inspect()
@@ -44,13 +42,26 @@ defmodule EctoNeo4j.Behaviour.Queryable do
   #   to_struct(record, schema)
   # end
 
-  defp format_results(results, %Ecto.Query.SelectExpr{fields: fields}) do
+  defp format_results(raw_results, %Ecto.Query.SelectExpr{fields: fields}) do
+    results = manage_id(raw_results)
+
     fields
     |> Enum.map(fn {{:., _, [{:&, [], [0]}, field_atom]}, _, _} -> field_atom end)
     |> Enum.into([], fn key ->
       {key, Map.fetch!(results, "n.#{Atom.to_string(key)}")}
     end)
     |> Keyword.values()
+  end
+
+  defp manage_id(%{"n.nodeId" => node_id} = data) do
+    data
+    |> Map.put("n.id", node_id)
+    |> Enum.reject(fn {key, _} -> key == "n.nodeId" end)
+    |> Map.new()
+  end
+
+  defp manage_id(data) do
+    data
   end
 
   # defp format_results(results, fields, _) do

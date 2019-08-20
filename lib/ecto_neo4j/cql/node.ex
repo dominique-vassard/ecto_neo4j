@@ -30,40 +30,42 @@ defmodule EctoNeo4j.Cql.Node do
 
       iex> data = %{title: "New title", uuid: "a-valid-uuid"}
       iex> EctoNeo4j.Cql.Node.insert("Post", data)
-      {"MERGE
-        (n:Post {uuid: {uuid}})
-      ON CREATE
+      {"CREATE
+        (n:Post)
       SET
-        n.title = {title}, \\nn.uuid = {uuid}
+        n.title = {title},  \\nn.uuid = {uuid}\\n
       RETURN
         n
       ", %{title: "New title", uuid: "a-valid-uuid"}}
   """
   @spec insert(String.t(), map()) :: {String.t(), map()}
   def insert(node_label, data) do
-    cql_set =
+    data_to_set =
       data
       |> Enum.map(fn {k, _} -> "n.#{k} = {#{k}}" end)
-      |> Enum.join(", \n")
 
-    cql_id =
-      case Map.has_key?(data, :uuid) do
-        true -> "uuid: {uuid}"
-        _ -> "nodeId: {node_id}"
+    cql_set =
+      if length(data_to_set) > 0 do
+        """
+        SET
+          #{Enum.join(data_to_set, ",  \n")}
+        """
       end
 
     cql = """
-    MERGE
-      (n:#{node_label} {#{cql_id}})
-    ON CREATE
-    SET
-      #{cql_set}
+    CREATE
+      (n:#{node_label})
+    #{cql_set}
     RETURN
       n
     """
 
     {cql, data}
   end
+
+  # def insert(node_label, data) do
+
+  # end
 
   @doc """
   Returns cypher query to update node data.
@@ -158,7 +160,7 @@ defmodule EctoNeo4j.Cql.Node do
       "MATCH
         (n:Post)\\n\\n
       RETURN
-        n\\n
+        n\\n\\n\\n
       "
 
       # with everything defined
@@ -171,7 +173,7 @@ defmodule EctoNeo4j.Cql.Node do
       WHERE
         title = {title}\\n\\n
       RETURN
-        n\\n
+        n\\n\\n\\n
       "
 
       # for deleting
@@ -181,11 +183,27 @@ defmodule EctoNeo4j.Cql.Node do
       DETACH DELETE
         n\\n
       RETURN
-        n\\n
+        n\\n\\n\\n
       "
   """
-  @spec build_query(String.t(), String.t(), String.t(), String.t()) :: String.t()
-  def build_query(query_type, node_label, where \\ "", return \\ "n", order_by \\ "") do
+  @spec build_query(
+          String.t(),
+          String.t(),
+          String.t(),
+          String.t(),
+          nil | integer(),
+          nil | integer()
+        ) ::
+          String.t()
+  def build_query(
+        query_type,
+        node_label,
+        where \\ "",
+        return \\ "n",
+        order_by \\ "",
+        limit \\ nil,
+        skip \\ nil
+      ) do
     cql_where =
       if String.length(where) > 0 do
         """
@@ -210,6 +228,20 @@ defmodule EctoNeo4j.Cql.Node do
         """
       end
 
+    cql_limit =
+      if limit do
+        """
+        LIMIT #{limit}
+        """
+      end
+
+    cql_skip =
+      if skip do
+        """
+        SKIP #{skip}
+        """
+      end
+
     """
     MATCH
       (n:#{node_label})
@@ -218,6 +250,8 @@ defmodule EctoNeo4j.Cql.Node do
     RETURN
       #{return}
     #{cql_order_by}
+    #{cql_skip}
+    #{cql_limit}
     """
   end
 end

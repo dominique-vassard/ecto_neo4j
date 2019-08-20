@@ -142,7 +142,7 @@ defmodule Ecto.Integration.RepoTest do
     assert %Permalink{url: "new"} = TestRepo.delete!(updated)
   end
 
-  @tag :composite_pk
+  @tag :supported
   test "insert, update and delete with composite pk" do
     c1 = TestRepo.insert!(%CompositePk{a: 1, b: 2, name: "first"})
     c2 = TestRepo.insert!(%CompositePk{a: 1, b: 3, name: "second"})
@@ -166,7 +166,7 @@ defmodule Ecto.Integration.RepoTest do
     end
   end
 
-  @tag :composite_pk
+  @tag :supported
   test "insert, update and delete with associated composite pk" do
     user = TestRepo.insert!(%User{})
     post = TestRepo.insert!(%Post{title: "post title", text: "post text"})
@@ -177,7 +177,7 @@ defmodule Ecto.Integration.RepoTest do
     assert TestRepo.all(PostUserCompositePk) == []
   end
 
-  @tag :invalid_prefix
+  @tag :unsupported
   test "insert, update and delete with invalid prefix" do
     post = TestRepo.insert!(%Post{})
     changeset = Ecto.Changeset.change(post, title: "foo")
@@ -186,6 +186,7 @@ defmodule Ecto.Integration.RepoTest do
     assert catch_error(TestRepo.delete(changeset, prefix: "oops"))
   end
 
+  @tag :supported
   test "insert and update with changeset" do
     # On insert we merge the fields and changes
     changeset =
@@ -211,6 +212,7 @@ defmodule Ecto.Integration.RepoTest do
     assert %Post{text: "x", title: "world", temp: "temp"} = TestRepo.get!(Post, post.id)
   end
 
+  @tag :supported
   test "insert and update with empty changeset" do
     # On insert we merge the fields and changes
     changeset = Ecto.Changeset.cast(%Permalink{}, %{}, ~w())
@@ -223,7 +225,8 @@ defmodule Ecto.Integration.RepoTest do
     assert TestRepo.update!(changeset) == permalink
   end
 
-  @tag :no_primary_key
+  # @tag :no_primary_key
+  @tag :supported
   test "insert with no primary key" do
     assert %Barebone{num: nil} = TestRepo.insert!(%Barebone{})
     assert %Barebone{num: 13} = TestRepo.insert!(%Barebone{num: 13})

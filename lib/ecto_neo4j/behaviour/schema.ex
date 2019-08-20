@@ -45,20 +45,6 @@ defmodule EctoNeo4j.Behaviour.Schema do
   defp format_data(data) do
     data
     |> Map.new()
-    |> manage_id()
+    |> EctoNeo4j.Helper.manage_id(:to_db)
   end
-
-  defp manage_node_id(%{nodeId: node_id} = data) do
-    data
-    |> Map.put(:id, node_id)
-    |> Map.drop([:node_id])
-  end
-
-  defp manage_id(%{id: id} = data) do
-    data
-    |> Map.put(:node_id, id)
-    |> Map.drop([:id])
-  end
-
-  defp manage_id(data), do: data
 end

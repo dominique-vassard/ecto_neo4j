@@ -1,11 +1,12 @@
 defmodule EctoNeo4j.QueryBuilder do
   import Ecto.Query
   alias EctoNeo4j.Cql.Node, as: NodeCql
+  alias EctoNeo4j.Helper
 
   @valid_operators [:==, :in, :>, :>=, :<, :<=]
   def build(query_type, queryable_or_schema, sources, opts \\ [])
 
-  def build(query_type, %Ecto.Query{} = query, sources, opts) do
+  def build(query_type, %Ecto.Query{} = query, sources, _opts) do
     {source, _schema} = query.from.source
     wheres = query.wheres
 
@@ -19,9 +20,22 @@ defmodule EctoNeo4j.QueryBuilder do
 
     cql_order_by = build_order_bys(query.order_bys)
 
-    cql = NodeCql.build_query(query_type, source, cql_where, cql_return, cql_order_by)
+    cql_limit = build_limit(query.limit)
 
-    {cql, params}
+    cql_skip = build_skip(query.offset)
+
+    cql =
+      NodeCql.build_query(
+        query_type,
+        source,
+        cql_where,
+        cql_return,
+        cql_order_by,
+        cql_limit,
+        cql_skip
+      )
+
+    {cql, Helper.manage_id(params, :to_db)}
   end
 
   def build(query_type, schema, sources, opts) do
@@ -39,8 +53,24 @@ defmodule EctoNeo4j.QueryBuilder do
     "n"
   end
 
+  defp build_limit(%Ecto.Query.QueryExpr{expr: res_limit}) do
+    res_limit
+  end
+
+  defp build_limit(_) do
+    nil
+  end
+
+  defp build_skip(%Ecto.Query.QueryExpr{expr: res_skip}) do
+    res_skip
+  end
+
+  defp build_skip(_) do
+    nil
+  end
+
   defp resolve_field_name({{:., _, [{:&, [], [0]}, field_name]}, [], []}) do
-    "n." <> Atom.to_string(field_name)
+    "n." <> format_field(field_name)
   end
 
   # defp build_where(%Ecto.Query.BooleanExpr{expr: expr}) do
@@ -93,7 +123,7 @@ defmodule EctoNeo4j.QueryBuilder do
   # end
 
   defp do_build_where(
-         {operator, _, [{{:., _, [{:&, _, _}, field]}, [], []}, {:^, _, [0]}]},
+         {operator, _, [{{:., _, [{:&, _, _}, field]}, [], []}, {:^, _, [sources_index]}]},
          sources,
          inc
        ) do
@@ -101,7 +131,7 @@ defmodule EctoNeo4j.QueryBuilder do
 
     params =
       %{}
-      |> Map.put(String.to_atom(format_field(field)), List.first(sources))
+      |> Map.put(String.to_atom(format_field(field)), Enum.at(sources, sources_index))
 
     {cql, params, inc}
   end
