@@ -14,9 +14,11 @@ defmodule EctoNeo4j.QueryBuilder do
     # |> Map.from_struct()
     # |> IO.inspect()
 
-    cql_return = build_return(query.select)
+    {cql_update, update_params} = build_update(query.updates, sources)
 
-    {cql_where, params} = build_where(wheres, sources)
+    {cql_where, where_params} = build_where(wheres, sources)
+
+    cql_return = build_return(query.select)
 
     cql_order_by = build_order_bys(query.order_bys)
 
@@ -29,11 +31,14 @@ defmodule EctoNeo4j.QueryBuilder do
         query_type,
         source,
         cql_where,
+        cql_update,
         cql_return,
         cql_order_by,
         cql_limit,
         cql_skip
       )
+
+    params = Map.merge(update_params, where_params)
 
     {cql, Helper.manage_id(params, :to_db)}
   end
@@ -194,6 +199,70 @@ defmodule EctoNeo4j.QueryBuilder do
     params = Map.merge(params1, params2)
     {cql, params, inc + 1}
   end
+
+  defp build_update([%Ecto.Query.QueryExpr{expr: expression}], sources) do
+    {data, inc} = do_build_update_data(:set, Keyword.get(expression, :set, []), sources)
+
+    {data, _} = do_build_update_data(:inc, Keyword.get(expression, :inc, []), sources, inc, data)
+
+    {cqls, params} =
+      Enum.reduce(data, {[], %{}}, fn {sub_cql, sub_params}, {cqls, params} ->
+        {cqls ++ [sub_cql], Map.merge(params, sub_params)}
+      end)
+
+    {Enum.join(cqls, ", "), params}
+  end
+
+  defp build_update([], _) do
+    {"", %{}}
+  end
+
+  defp do_build_update_data(update_type, expression, sources, inc \\ 0, result \\ [])
+
+  defp do_build_update_data(
+         update_type,
+         [{field, {:^, [], [sources_idx]}} | tail],
+         sources,
+         inc,
+         result
+       ) do
+    cql = build_update_cql(update_type, Atom.to_string(field), inc)
+    params = %{"param_up#{inc}" => Enum.at(sources, sources_idx)}
+
+    do_build_update_data(update_type, tail, sources, inc + 1, result ++ [{cql, params}])
+  end
+
+  defp do_build_update_data(_, [], _, inc, result) do
+    {result, inc}
+  end
+
+  defp build_update_cql(:set, field, inc) do
+    "n.#{field} = {param_up#{inc}}"
+  end
+
+  defp build_update_cql(:inc, field, inc) do
+    "n.#{field} = n.#{field} + {param_up#{inc}}"
+  end
+
+  # defp do_build_update_data(expression, sources, inc \\ 0, result \\ []) do
+  #   {cqls, params} =
+  #     expression
+  #     |> Enum.reduce([], fn {field, {:^, [], [sources_idx]}}, acc ->
+  #       cql = "n.#{Atom.to_string(field)} = {param_#{inc}}"
+  #       params = %{"param_#{inc}" => Enum.at(sources, sources_idx)}
+  #       acc ++ [{cql, params}]
+  #     end)
+  #     |> IO.inspect()
+  #     |> Enum.reduce({[], %{}}, fn {sub_cql, sub_params}, {cqls, params} ->
+  #       {cqls ++ sub_cql, Map.merge(params, sub_params)}
+  #     end)
+
+  #   # {[Enum.join(cqls, ", ")], params}
+  # end
+
+  # defp do_build_update_data(nil, _, inc) do
+  #   {[], %{}, inc}
+  # end
 
   defp build_order_bys([]) do
     ""

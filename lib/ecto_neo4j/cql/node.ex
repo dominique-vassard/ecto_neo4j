@@ -158,7 +158,7 @@ defmodule EctoNeo4j.Cql.Node do
       # with default `where` and `return`
       iex> EctoNeo4j.Cql.Node.build_query(:match, "Post")
       "MATCH
-        (n:Post)\\n\\n
+        (n:Post)\\n\\n\\n
       RETURN
         n\\n\\n\\n
       "
@@ -167,11 +167,11 @@ defmodule EctoNeo4j.Cql.Node do
       iex> node_label = "Post"
       iex> where = "title = {title}"
       iex> return = "n"
-      iex> EctoNeo4j.Cql.Node.build_query(:match, node_label, where, return)
+      iex> EctoNeo4j.Cql.Node.build_query(:match, node_label, where, "", return)
       "MATCH
         (n:Post)
       WHERE
-        title = {title}\\n\\n
+      title = {title}\\n\\n\\n
       RETURN
         n\\n\\n\\n
       "
@@ -179,7 +179,7 @@ defmodule EctoNeo4j.Cql.Node do
       # for deleting
       iex> EctoNeo4j.Cql.Node.build_query(:delete, "Post")
       "MATCH
-        (n:Post)\\n
+        (n:Post)\\n\\n
       DETACH DELETE
         n\\n
       RETURN
@@ -187,6 +187,7 @@ defmodule EctoNeo4j.Cql.Node do
       "
   """
   @spec build_query(
+          String.t(),
           String.t(),
           String.t(),
           String.t(),
@@ -199,6 +200,7 @@ defmodule EctoNeo4j.Cql.Node do
         query_type,
         node_label,
         where \\ "",
+        update \\ "",
         return \\ "n",
         order_by \\ "",
         limit \\ nil,
@@ -208,7 +210,15 @@ defmodule EctoNeo4j.Cql.Node do
       if String.length(where) > 0 do
         """
         WHERE
-          #{where}
+        #{where}
+        """
+      end
+
+    cql_update =
+      if String.length(update) > 0 do
+        """
+        SET
+          #{update}
         """
       end
 
@@ -246,6 +256,7 @@ defmodule EctoNeo4j.Cql.Node do
     MATCH
       (n:#{node_label})
     #{cql_where}
+    #{cql_update}
     #{cql_delete}
     RETURN
       #{return}

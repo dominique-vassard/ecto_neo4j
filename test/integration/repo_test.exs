@@ -232,6 +232,7 @@ defmodule Ecto.Integration.RepoTest do
     assert %Barebone{num: 13} = TestRepo.insert!(%Barebone{num: 13})
   end
 
+  @tag :unsupported
   @tag :read_after_writes
   test "insert and update with changeset read after writes" do
     defmodule RAW do
@@ -257,6 +258,7 @@ defmodule Ecto.Integration.RepoTest do
     assert %{id: ^cid, lock_version: 11, text: "0"} = TestRepo.update!(changeset)
   end
 
+  @tag :supported
   test "insert autogenerates for custom type" do
     post = TestRepo.insert!(%Post{uuid: nil})
     assert byte_size(post.uuid) == 36

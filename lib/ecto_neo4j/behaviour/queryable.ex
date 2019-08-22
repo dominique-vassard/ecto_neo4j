@@ -11,6 +11,10 @@ defmodule EctoNeo4j.Behaviour.Queryable do
     {:nocache, {:delete, query}}
   end
 
+  def prepare(:update_all, query) do
+    {:nocache, {:update, query}}
+  end
+
   def execute(
         _repo,
         %{sources: {{_, _schema, _}}},
@@ -19,7 +23,9 @@ defmodule EctoNeo4j.Behaviour.Queryable do
         _preprocess,
         opts \\ []
       ) do
-    # quers.inspect()
+    # query
+    # |> Map.from_struct()
+    # |> IO.inspect()
 
     {cypher_query, params} = QueryBuilder.build(query_type, query, sources, opts)
     # |> IO.inspect()
@@ -51,6 +57,10 @@ defmodule EctoNeo4j.Behaviour.Queryable do
       {key, Map.fetch!(results, "n.#{Atom.to_string(key)}")}
     end)
     |> Keyword.values()
+  end
+
+  defp format_results(_, nil) do
+    []
   end
 
   defp manage_id(%{"n.nodeId" => node_id} = data) do
