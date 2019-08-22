@@ -17,7 +17,7 @@ defmodule EctoNeo4j.Adapter do
   def dumpers(:uuid, _type), do: [&Ecto.UUID.cast/1, :string]
   def dumpers(_primitive, type), do: [type]
 
-  def loaders(:uuid, _type), do: [&Ecto.UUID.dump/1, :string]
+  def loaders(:uuid, _type), do: [&Ecto.UUID.dump/1, Ecto.UUID]
   def loaders(_primitive, type), do: [type]
 
   @behaviour Ecto.Adapter.Queryable
