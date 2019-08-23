@@ -1,7 +1,7 @@
 defmodule EctoNeo4j.Behaviour.Schema do
   alias EctoNeo4j.Cql.Node, as: NodeCql
 
-  def autogenerate(:id), do: :erlang.system_time(:seconds)
+  def autogenerate(:id), do: :erlang.system_time(:microsecond)
   def autogenerate(:binary_id), do: Ecto.UUID.generate()
   def autogenerate(:embed_id), do: Ecto.UUID.generate()
 

@@ -754,6 +754,7 @@ defmodule Ecto.Integration.RepoTest do
     assert changeset.errors[:name] == nil
   end
 
+  @tag :supported
   test "get(!)" do
     post1 = TestRepo.insert!(%Post{title: "1", text: "hai"})
     post2 = TestRepo.insert!(%Post{title: "2", text: "hai"})
@@ -775,6 +776,7 @@ defmodule Ecto.Integration.RepoTest do
     end
   end
 
+  @tag :supported
   test "get(!) with custom source" do
     custom = Ecto.put_meta(%Custom{}, source: "posts")
     custom = TestRepo.insert!(custom)
@@ -784,12 +786,14 @@ defmodule Ecto.Integration.RepoTest do
              TestRepo.get(from(c in {"posts", Custom}), bid)
   end
 
+  @tag :supported
   test "get(!) with binary_id" do
     custom = TestRepo.insert!(%Custom{})
     bid = custom.bid
     assert %Custom{bid: ^bid} = TestRepo.get(Custom, bid)
   end
 
+  @tag :supported
   test "get_by(!)" do
     post1 = TestRepo.insert!(%Post{title: "1", text: "hai"})
     post2 = TestRepo.insert!(%Post{title: "2", text: "hello"})
