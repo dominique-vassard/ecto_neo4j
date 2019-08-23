@@ -28,7 +28,6 @@ defmodule EctoNeo4j.Behaviour.Queryable do
     # |> IO.inspect()
 
     {cypher_query, params} = QueryBuilder.build(query_type, query, sources, opts)
-    # |> IO.inspect()
 
     # do_execute(query)
 

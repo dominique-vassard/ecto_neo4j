@@ -219,6 +219,11 @@ defmodule EctoNeo4j.QueryBuilder do
     {cql, params, inc}
   end
 
+  defp do_build_where({operator, _, [{{:., _, [{:&, _, _}, field]}, [], []}]}, _sources, inc) do
+    cql = "n.#{format_field(field)} #{format_operator(operator)}"
+    {cql, %{}, inc}
+  end
+
   defp do_build_where({operator, _, [arg]}, sources, inc) do
     {cql_sub, params, inc} = do_build_where(arg, sources, inc + 1)
     cql = "#{Atom.to_string(operator)} (#{cql_sub})"
@@ -331,6 +336,10 @@ defmodule EctoNeo4j.QueryBuilder do
 
   defp format_operator(:in) do
     "IN"
+  end
+
+  defp format_operator(:is_nil) do
+    "IS NULL"
   end
 
   defp format_operator(operator) when operator in @valid_operators do

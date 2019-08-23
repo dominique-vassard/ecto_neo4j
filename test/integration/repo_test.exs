@@ -819,6 +819,7 @@ defmodule Ecto.Integration.RepoTest do
     end
   end
 
+  @tag :supported
   test "first, last and one(!)" do
     post1 = TestRepo.insert!(%Post{title: "1", text: "hai"})
     post2 = TestRepo.insert!(%Post{title: "2", text: "hai"})
@@ -841,6 +842,7 @@ defmodule Ecto.Integration.RepoTest do
     assert_raise Ecto.NoResultsError, fn -> query |> last |> TestRepo.one!() end
   end
 
+  @tag :supported
   test "exists?" do
     TestRepo.insert!(%Post{title: "1", text: "hai", visits: 2})
     TestRepo.insert!(%Post{title: "2", text: "hai", visits: 1})
