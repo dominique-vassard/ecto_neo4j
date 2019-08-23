@@ -78,12 +78,12 @@ defmodule EctoNeo4j.Cql.Node do
       {"MATCH
         (n:Post)
       WHERE
-        n.id = {id}
+        n.id = {f_id}
       SET
         n.title = {title}
       RETURN
         n
-      ", %{id: 5, title: "New title"}}
+      ", %{f_id: 5, title: "New title"}}
   """
   @spec update(String.t(), map(), map()) :: {String.t(), map()}
   def update(node_label, data, filters) do
@@ -94,8 +94,15 @@ defmodule EctoNeo4j.Cql.Node do
 
     where =
       filters
-      |> Enum.map(fn {k, _} -> "n.#{k} = {#{k}}" end)
+      |> Enum.map(fn {k, _} -> "n.#{k} = {f_#{k}}" end)
       |> Enum.join(" AND ")
+
+    formated_filters =
+      filters
+      |> Enum.map(fn {k, v} ->
+        {"f_#{Atom.to_string(k)}" |> String.to_atom(), v}
+      end)
+      |> Map.new()
 
     cql = """
     MATCH
@@ -108,7 +115,7 @@ defmodule EctoNeo4j.Cql.Node do
       n
     """
 
-    params = Map.merge(data, filters)
+    params = Map.merge(data, formated_filters)
 
     {cql, params}
   end
@@ -187,7 +194,7 @@ defmodule EctoNeo4j.Cql.Node do
       "
   """
   @spec build_query(
-          String.t(),
+          :match | :delete | :update,
           String.t(),
           String.t(),
           String.t(),

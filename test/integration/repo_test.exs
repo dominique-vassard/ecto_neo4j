@@ -265,6 +265,7 @@ defmodule Ecto.Integration.RepoTest do
     assert TestRepo.get_by(Post, uuid: post.uuid) == post
   end
 
+  @tag :supported
   @tag :id_type
   test "insert autogenerates for custom id type" do
     defmodule ID do
@@ -280,12 +281,14 @@ defmodule Ecto.Integration.RepoTest do
     assert TestRepo.get_by(ID, id: "#{id.id}-hello") == id
   end
 
+  @tag :supported
   @tag :id_type
   @tag :assigns_id_type
   test "insert with user-assigned primary key" do
     assert %Post{id: 1} = TestRepo.insert!(%Post{id: 1})
   end
 
+  @tag :supported
   @tag :id_type
   @tag :assigns_id_type
   test "insert and update with user-assigned primary key in changeset" do
@@ -296,12 +299,14 @@ defmodule Ecto.Integration.RepoTest do
     assert %Post{id: 15} = TestRepo.update!(changeset)
   end
 
+  @tag :supported
   test "insert and fetch a schema with utc timestamps" do
     datetime = DateTime.from_unix!(System.system_time(:second), :second)
     TestRepo.insert!(%User{inserted_at: datetime})
     assert [%{inserted_at: ^datetime}] = TestRepo.all(User)
   end
 
+  @tag :not_implemented
   test "optimistic locking in update/delete operations" do
     import Ecto.Changeset, only: [cast: 3, optimistic_lock: 2]
     base_post = TestRepo.insert!(%Comment{})
@@ -318,6 +323,7 @@ defmodule Ecto.Integration.RepoTest do
     assert_raise Ecto.StaleEntryError, fn -> TestRepo.delete!(changeset_stale) end
   end
 
+  @tag :not_implemented
   test "optimistic locking in update operation with nil field" do
     import Ecto.Changeset, only: [cast: 3, optimistic_lock: 3]
 
@@ -341,6 +347,7 @@ defmodule Ecto.Integration.RepoTest do
     assert updated.lock_version == 1
   end
 
+  @tag :not_implemented
   test "optimistic locking in delete operation with nil field" do
     import Ecto.Changeset, only: [cast: 3, optimistic_lock: 3]
 
