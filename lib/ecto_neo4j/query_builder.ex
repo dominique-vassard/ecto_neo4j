@@ -3,7 +3,7 @@ defmodule EctoNeo4j.QueryBuilder do
   alias EctoNeo4j.Cql.Node, as: NodeCql
   alias EctoNeo4j.Helper
 
-  @valid_operators [:==, :in, :>, :>=, :<, :<=]
+  @valid_operators [:==, :in, :>, :>=, :<, :<]
   def build(query_type, queryable_or_schema, sources, opts \\ [])
 
   def build(query_type, %Ecto.Query{} = query, sources, _opts) do
@@ -46,6 +46,10 @@ defmodule EctoNeo4j.QueryBuilder do
   def build(query_type, schema, sources, opts) do
     query = from(s in schema)
     build(query_type, query, sources, opts)
+  end
+
+  defp build_return(%{fields: []}) do
+    "n"
   end
 
   defp build_return(%{fields: select_fields}) do
@@ -95,6 +99,37 @@ defmodule EctoNeo4j.QueryBuilder do
       |> Map.merge(unbound_params)
 
     {cql_where, params}
+  end
+
+  defp build_where([_ | _] = wheres, sources) do
+    {cqls, params} =
+      wheres
+      |> Enum.map(&build_where(&1, sources))
+      |> Enum.reduce({[], %{}}, fn {sub_cql, sub_param}, {cql, params} ->
+        {cql ++ [sub_cql], Map.merge(params, sub_param)}
+      end)
+
+    # We have to use the operator of the BooleanExpr, not the one inside the expression
+    # Because there is as many operators as sub query, we tkae only the last 2 operators
+    # to build the final query
+    cql =
+      Enum.map(wheres, fn %Ecto.Query.BooleanExpr{op: operator} ->
+        operator
+        |> Atom.to_string()
+        |> String.upcase()
+      end)
+      |> List.delete_at(0)
+      |> Kernel.++([""])
+      |> Enum.zip(cqls)
+      |> Enum.reduce("", fn {sub_cql, operator}, cql ->
+        cql <> " " <> operator <> " " <> sub_cql
+      end)
+
+    {cql, params}
+  end
+
+  defp build_where(%Ecto.Query.BooleanExpr{} = wheres, sources) do
+    build_where([wheres], sources)
   end
 
   defp build_where([], _) do
@@ -288,6 +323,10 @@ defmodule EctoNeo4j.QueryBuilder do
 
   defp format_operator(:==) do
     "="
+  end
+
+  defp format_operator(:!=) do
+    "<>"
   end
 
   defp format_operator(:in) do

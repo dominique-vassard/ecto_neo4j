@@ -710,6 +710,7 @@ defmodule Ecto.Integration.RepoTest do
     |> Ecto.Changeset.assoc_constraint(:post)
   end
 
+  @tag :supported
   test "unsafe_validate_unique/3" do
     {:ok, inserted_post} = TestRepo.insert(%Post{title: "Greetings", text: "hi"})
     new_post_changeset = Post.changeset(%Post{}, %{title: "Greetings", text: "ho"})
@@ -730,6 +731,7 @@ defmodule Ecto.Integration.RepoTest do
     assert changeset.errors[:title] == nil
   end
 
+  @tag :supported
   test "unsafe_validate_unique/3 with composite keys" do
     {:ok, inserted_post} = TestRepo.insert(%CompositePk{a: 123, b: 456, name: "UniqueName"})
 
