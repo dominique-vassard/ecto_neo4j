@@ -367,6 +367,7 @@ defmodule Ecto.Integration.RepoTest do
     refute TestRepo.get(Comment, base_post.id)
   end
 
+  @tag :to_be_implemented
   @tag :unique_constraint
   test "unique constraint" do
     changeset = Ecto.Changeset.change(%Post{}, uuid: Ecto.UUID.generate())
@@ -409,6 +410,7 @@ defmodule Ecto.Integration.RepoTest do
     assert changeset.data.__meta__.state == :built
   end
 
+  @tag :to_be_implemented
   @tag :unique_constraint
   test "unique constraint from association" do
     uuid = Ecto.UUID.generate()
@@ -432,6 +434,7 @@ defmodule Ecto.Integration.RepoTest do
            ]
   end
 
+  @tag :to_be_implemented
   @tag :id_type
   @tag :unique_constraint
   test "unique constraint with binary_id" do
@@ -452,6 +455,7 @@ defmodule Ecto.Integration.RepoTest do
     assert changeset.data.__meta__.state == :built
   end
 
+  @tag :not_implemented
   test "unique pseudo-constraint violation error message with join table at the repository" do
     post =
       TestRepo.insert!(%Post{title: "some post"})
@@ -471,6 +475,7 @@ defmodule Ecto.Integration.RepoTest do
     refute changeset.valid?
   end
 
+  @tag :not_implemented
   @tag :join
   @tag :unique_constraint
   test "unique constraint violation error message with join table in single changeset" do
@@ -497,6 +502,7 @@ defmodule Ecto.Integration.RepoTest do
     refute changeset.valid?
   end
 
+  @tag :not_implemented
   @tag :join
   @tag :unique_constraint
   test "unique constraint violation error message with join table and separate changesets" do
@@ -528,6 +534,7 @@ defmodule Ecto.Integration.RepoTest do
     refute changeset.valid?
   end
 
+  @tag :not_implemented
   @tag :foreign_key_constraint
   test "foreign key constraint" do
     changeset = Ecto.Changeset.change(%Comment{post_id: 0})
@@ -567,6 +574,7 @@ defmodule Ecto.Integration.RepoTest do
            ]
   end
 
+  @tag :not_implemented
   @tag :foreign_key_constraint
   test "assoc constraint" do
     changeset = Ecto.Changeset.change(%Comment{post_id: 0})
@@ -604,6 +612,7 @@ defmodule Ecto.Integration.RepoTest do
            ]
   end
 
+  @tag :not_implemented
   @tag :foreign_key_constraint
   test "no assoc constraint error" do
     user = TestRepo.insert!(%User{})
@@ -620,6 +629,7 @@ defmodule Ecto.Integration.RepoTest do
     assert exception.message =~ "The changeset has not defined any constraint."
   end
 
+  @tag :not_implemented
   @tag :foreign_key_constraint
   test "no assoc constraint with changeset mismatch" do
     user = TestRepo.insert!(%User{})
@@ -638,6 +648,7 @@ defmodule Ecto.Integration.RepoTest do
     assert exception.message =~ "permalinks_user_id_pther (foreign_key_constraint)"
   end
 
+  @tag :not_implemented
   @tag :foreign_key_constraint
   test "no assoc constraint with changeset match" do
     user = TestRepo.insert!(%User{})
@@ -656,6 +667,7 @@ defmodule Ecto.Integration.RepoTest do
            ]
   end
 
+  @tag :not_implemented
   @tag :foreign_key_constraint
   test "insert and update with embeds during failing child foreign key" do
     changeset =
