@@ -51,15 +51,28 @@ defmodule EctoNeo4j.Behaviour.Queryable do
     results = manage_id(raw_results)
 
     fields
-    |> Enum.map(fn {{:., _, [{:&, [], [0]}, field_atom]}, _, _} -> field_atom end)
+    # |> Enum.map(fn {{:., _, [{:&, [], [0]}, field_atom]}, _, _} -> field_atom end)
+    |> Enum.map(&format_result_field/1)
     |> Enum.into([], fn key ->
-      {key, Map.fetch!(results, "n.#{Atom.to_string(key)}")}
+      {key, Map.fetch!(results, key)}
     end)
     |> Keyword.values()
   end
 
   defp format_results(_, nil) do
     []
+  end
+
+  defp format_result_field({{:., _, [{:&, [], [0]}, field_atom]}, _, _}) do
+    resolve_field_name(field_atom)
+  end
+
+  defp format_result_field({aggregate, [], [field]}) do
+    Atom.to_string(aggregate) <> "(" <> resolve_field_name(field) <> ")"
+  end
+
+  defp resolve_field_name({{:., _, [{:&, [], [0]}, field_name]}, [], []}) do
+    "n." <> Atom.to_string(field_name)
   end
 
   defp manage_id(%{"n.nodeId" => node_id} = data) do

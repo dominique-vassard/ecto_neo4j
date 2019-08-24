@@ -3,7 +3,7 @@ defmodule EctoNeo4j.QueryBuilder do
   alias EctoNeo4j.Cql.Node, as: NodeCql
   alias EctoNeo4j.Helper
 
-  @valid_operators [:==, :in, :>, :>=, :<, :<]
+  @valid_operators [:==, :in, :>, :>=, :<, :<, :min, :max, :count, :sum, :avg]
   def build(query_type, queryable_or_schema, sources, opts \\ [])
 
   def build(query_type, %Ecto.Query{} = query, sources, _opts) do
@@ -54,12 +54,21 @@ defmodule EctoNeo4j.QueryBuilder do
 
   defp build_return(%{fields: select_fields}) do
     select_fields
-    |> Enum.map(&resolve_field_name/1)
+    # |> Enum.map(&resolve_field_name/1)
+    |> Enum.map(&format_return_field/1)
     |> Enum.join(", ")
   end
 
   defp build_return(_) do
     "n"
+  end
+
+  defp format_return_field({aggregate, [], [field]}) do
+    format_operator(aggregate) <> "(" <> resolve_field_name(field) <> ")"
+  end
+
+  defp format_return_field(field) do
+    resolve_field_name(field)
   end
 
   defp build_limit(%Ecto.Query.QueryExpr{expr: res_limit}) do
