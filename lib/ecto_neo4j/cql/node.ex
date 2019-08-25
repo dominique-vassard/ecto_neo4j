@@ -37,9 +37,20 @@ defmodule EctoNeo4j.Cql.Node do
       RETURN
         n
       ", %{title: "New title", uuid: "a-valid-uuid"}}
+
+      # With returning fields specified
+      iex> data = %{title: "New title", uuid: "a-valid-uuid"}
+      iex> EctoNeo4j.Cql.Node.insert("Post", data, [:uuid])
+      {"CREATE
+        (n:Post)
+      SET
+        n.title = {title},  \\nn.uuid = {uuid}\\n
+      RETURN
+        n.uuid AS uuid
+      ", %{title: "New title", uuid: "a-valid-uuid"}}
   """
-  @spec insert(String.t(), map()) :: {String.t(), map()}
-  def insert(node_label, data) do
+  @spec insert(String.t(), map(), list()) :: {String.t(), map()}
+  def insert(node_label, data, return \\ []) do
     data_to_set =
       data
       |> Enum.map(fn {k, _} -> "n.#{k} = {#{k}}" end)
@@ -52,12 +63,21 @@ defmodule EctoNeo4j.Cql.Node do
         """
       end
 
+    return_fields =
+      if length(return) > 0 do
+        return
+        |> Enum.map(fn field -> "n.#{field} AS #{field}" end)
+        |> Enum.join(", ")
+      else
+        "n"
+      end
+
     cql = """
     CREATE
       (n:#{node_label})
     #{cql_set}
     RETURN
-      n
+      #{return_fields}
     """
 
     {cql, data}

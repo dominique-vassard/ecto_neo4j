@@ -908,6 +908,8 @@ defmodule Ecto.Integration.RepoTest do
     assert TestRepo.aggregate(query, :count, :visits) == 3
   end
 
+  # THis can't worlk as it relies upon db to produce automatic ids and default value....
+  @tag :unsupported
   @tag :insert_cell_wise_defaults
   test "insert all" do
     assert {2, nil} =
@@ -933,6 +935,7 @@ defmodule Ecto.Integration.RepoTest do
     assert {0, nil} = TestRepo.insert_all({"posts", Post}, [])
   end
 
+  @tag :to_be_implemented
   @tag :insert_select
   test "insert all with query" do
     comment = TestRepo.insert!(%Comment{text: "1", lock_version: 1})
@@ -965,12 +968,14 @@ defmodule Ecto.Integration.RepoTest do
            ] = inserted_rows
   end
 
+  @tag :unsupported
   @tag :invalid_prefix
   @tag :insert_cell_wise_defaults
   test "insert all with invalid prefix" do
     assert catch_error(TestRepo.insert_all(Post, [[], []], prefix: "oops"))
   end
 
+  @tag :supported
   @tag :returning
   @tag :insert_cell_wise_defaults
   test "insert all with returning with schema" do
@@ -988,6 +993,7 @@ defmodule Ecto.Integration.RepoTest do
     assert %Comment{text: "4", __meta__: %{state: :loaded}} = c2
   end
 
+  @tag :supported
   @tag :returning
   @tag :insert_cell_wise_defaults
   test "insert all with returning with schema with field source" do
@@ -1005,6 +1011,7 @@ defmodule Ecto.Integration.RepoTest do
     assert %Permalink{url: "4", __meta__: %{state: :loaded}} = c2
   end
 
+  @tag :supported
   @tag :returning
   @tag :insert_cell_wise_defaults
   test "insert all with returning without schema" do
@@ -1019,6 +1026,7 @@ defmodule Ecto.Integration.RepoTest do
     end
   end
 
+  @tag :supported
   @tag :insert_cell_wise_defaults
   test "insert all with dumping" do
     uuid = Ecto.UUID.generate()
@@ -1026,6 +1034,7 @@ defmodule Ecto.Integration.RepoTest do
     assert [%Post{uuid: ^uuid, title: nil}] = TestRepo.all(Post)
   end
 
+  @tag :supported
   @tag :insert_cell_wise_defaults
   test "insert all autogenerates for binary_id type" do
     custom = TestRepo.insert!(%Custom{bid: nil})

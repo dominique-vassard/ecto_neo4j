@@ -63,8 +63,8 @@ defmodule EctoNeo4j.Behaviour.Queryable do
     []
   end
 
-  defp format_result_field({{:., _, [{:&, [], [0]}, field_atom]}, _, _}) do
-    resolve_field_name(field_atom)
+  defp format_result_field({{:., _, [{:&, [], [0]}, _]}, _, _} = field) do
+    resolve_field_name(field)
   end
 
   defp format_result_field({aggregate, [], [field]}) do

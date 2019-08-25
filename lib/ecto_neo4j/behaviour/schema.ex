@@ -6,19 +6,35 @@ defmodule EctoNeo4j.Behaviour.Schema do
   def autogenerate(:embed_id), do: Ecto.UUID.generate()
 
   def insert_all(
-        _adapter_meta,
-        _schema_meta,
+        adapter,
+        schema_meta,
         _header,
-        _entries,
-        _on_conflict,
-        _returning,
-        _options
+        entries,
+        on_conflict,
+        returning,
+        options
       ) do
-    {0, []}
+    inserts =
+      entries
+      |> Enum.map(fn data ->
+        insert(adapter, schema_meta, data, on_conflict, returning, options)
+      end)
+
+    case returning do
+      [] -> {length(inserts), nil}
+      _ -> {length(inserts), Enum.map(inserts, fn {_, v} -> v end)}
+    end
   end
 
-  def insert(_adapter, %{source: source}, fields, _on_conflict, _returning, _opts \\ []) do
-    NodeCql.insert(source, format_data(fields))
+  def insert(_adapter, %{source: source}, fields, _on_conflict, returning, _opts \\ []) do
+    returning_field =
+      returning
+      |> Enum.map(fn
+        :id -> :nodeId
+        field -> field
+      end)
+
+    NodeCql.insert(source, format_data(fields), returning_field)
     |> execute()
   end
 
@@ -36,6 +52,9 @@ defmodule EctoNeo4j.Behaviour.Schema do
     case EctoNeo4j.Behaviour.Queryable.query(cql, params) do
       {:ok, %Bolt.Sips.Response{results: [%{"n" => _record}]}} ->
         {:ok, []}
+
+      {:ok, %Bolt.Sips.Response{records: [record]}} ->
+        {:ok, record}
 
       {:error, reason} ->
         {:error, reason}
