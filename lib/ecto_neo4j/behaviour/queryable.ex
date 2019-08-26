@@ -43,7 +43,7 @@ defmodule EctoNeo4j.Behaviour.Queryable do
     end
   end
 
-  defp format_final_result(:update, results) do
+  defp format_final_result(query_type, results) when query_type in [:update, :delete] do
     case Enum.filter(results, fn v -> length(v) > 0 end) do
       [] -> nil
       result -> result

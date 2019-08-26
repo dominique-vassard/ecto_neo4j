@@ -1187,6 +1187,7 @@ defmodule Ecto.Integration.RepoTest do
     assert %Post{text: "hai", inserted_at: ^datetime} = TestRepo.get(Post, id)
   end
 
+  @tag :supported
   test "delete all" do
     assert %Post{} = TestRepo.insert!(%Post{title: "1", text: "hai"})
     assert %Post{} = TestRepo.insert!(%Post{title: "2", text: "hai"})
@@ -1196,11 +1197,13 @@ defmodule Ecto.Integration.RepoTest do
     assert [] = TestRepo.all(Post)
   end
 
+  @tag :unsupported
   @tag :invalid_prefix
   test "delete all with invalid prefix" do
     assert catch_error(TestRepo.delete_all(Post, prefix: "oops"))
   end
 
+  @tag :unsupported
   @tag :returning
   test "delete all with returning with schema" do
     assert %Post{id: id1} = TestRepo.insert!(%Post{title: "1", text: "hai"})
@@ -1215,6 +1218,7 @@ defmodule Ecto.Integration.RepoTest do
     assert %Post{id: ^id3, title: "3"} = p3
   end
 
+  @tag :unsupported
   @tag :returning
   test "delete all with returning without schema" do
     assert %Post{id: id1} = TestRepo.insert!(%Post{title: "1", text: "hai"})
@@ -1229,6 +1233,7 @@ defmodule Ecto.Integration.RepoTest do
     assert p3 == %{id: id3, title: "3"}
   end
 
+  @tag :supported
   test "delete all with filter" do
     assert %Post{} = TestRepo.insert!(%Post{title: "1", text: "hai"})
     assert %Post{} = TestRepo.insert!(%Post{title: "2", text: "hai"})
@@ -1239,6 +1244,7 @@ defmodule Ecto.Integration.RepoTest do
     assert [%Post{}] = TestRepo.all(Post)
   end
 
+  @tag :supported
   test "delete all no entries" do
     assert %Post{id: id1} = TestRepo.insert!(%Post{title: "1", text: "hai"})
     assert %Post{id: id2} = TestRepo.insert!(%Post{title: "2", text: "hai"})
@@ -1251,6 +1257,7 @@ defmodule Ecto.Integration.RepoTest do
     assert %Post{title: "3"} = TestRepo.get(Post, id3)
   end
 
+  @tag :supported
   test "virtual field" do
     assert %Post{id: id} = TestRepo.insert!(%Post{title: "1", text: "hai"})
     assert TestRepo.get(Post, id).temp == "temp"
