@@ -31,16 +31,27 @@ defmodule EctoNeo4j.Behaviour.Queryable do
 
     # do_execute(query)
 
-    res =
-      case query(cypher_query, params) do
-        {:ok, results} ->
-          Enum.map(results.results, &format_results(&1, query.select))
+    # {nb_ops, res} =
+    case query(cypher_query, params) do
+      {:ok, results} ->
+        res = Enum.map(results.results, &format_results(&1, query.select))
 
-        {:error, error} ->
-          raise error
-      end
+        {length(res), format_final_result(query_type, res)}
 
-    {1, res}
+      {:error, error} ->
+        raise error
+    end
+  end
+
+  defp format_final_result(:update, results) do
+    case Enum.filter(results, fn v -> length(v) > 0 end) do
+      [] -> nil
+      result -> result
+    end
+  end
+
+  defp format_final_result(_, results) do
+    results
   end
 
   # defp format_results(%{"n" => record}, _, schema) do

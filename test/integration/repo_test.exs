@@ -1054,6 +1054,7 @@ defmodule Ecto.Integration.RepoTest do
     assert custom.bid == bid2
   end
 
+  @tag :supported
   test "update all" do
     assert %Post{id: id1} = TestRepo.insert!(%Post{title: "1"})
     assert %Post{id: id2} = TestRepo.insert!(%Post{title: "2"})
@@ -1072,11 +1073,13 @@ defmodule Ecto.Integration.RepoTest do
     assert %Post{title: nil} = TestRepo.get(Post, id3)
   end
 
+  @tag :unsupported
   @tag :invalid_prefix
   test "update all with invalid prefix" do
     assert catch_error(TestRepo.update_all(Post, [set: [title: "x"]], prefix: "oops"))
   end
 
+  @tag :supported
   @tag :returning
   test "update all with returning with schema" do
     assert %Post{id: id1} = TestRepo.insert!(%Post{title: "1"})
@@ -1098,6 +1101,7 @@ defmodule Ecto.Integration.RepoTest do
     assert %Post{id: ^id3, title: nil, visits: 11} = p3
   end
 
+  @tag :supported
   @tag :returning
   test "update all with returning without schema" do
     assert %Post{id: id1} = TestRepo.insert!(%Post{title: "1"})
@@ -1112,6 +1116,7 @@ defmodule Ecto.Integration.RepoTest do
     assert p3 == %{id: id3, title: "x"}
   end
 
+  @tag :supported
   test "update all with filter" do
     assert %Post{id: id1} = TestRepo.insert!(%Post{title: "1"})
     assert %Post{id: id2} = TestRepo.insert!(%Post{title: "2"})
@@ -1130,6 +1135,7 @@ defmodule Ecto.Integration.RepoTest do
     assert %Post{title: "3", text: nil} = TestRepo.get(Post, id3)
   end
 
+  @tag :supported
   test "update all no entries" do
     assert %Post{id: id1} = TestRepo.insert!(%Post{title: "1"})
     assert %Post{id: id2} = TestRepo.insert!(%Post{title: "2"})
@@ -1143,6 +1149,7 @@ defmodule Ecto.Integration.RepoTest do
     assert %Post{title: "3"} = TestRepo.get(Post, id3)
   end
 
+  @tag :supported
   test "update all increment syntax" do
     assert %Post{id: id1} = TestRepo.insert!(%Post{title: "1", visits: 0})
     assert %Post{id: id2} = TestRepo.insert!(%Post{title: "2", visits: 1})
@@ -1162,6 +1169,7 @@ defmodule Ecto.Integration.RepoTest do
     assert %Post{visits: 2} = TestRepo.get(Post, id2)
   end
 
+  @tag :supported
   @tag :id_type
   test "update all with casting and dumping on id type field" do
     assert %Post{id: id1} = TestRepo.insert!(%Post{})
@@ -1169,6 +1177,7 @@ defmodule Ecto.Integration.RepoTest do
     assert %Post{counter: ^id1} = TestRepo.get(Post, id1)
   end
 
+  @tag :supported
   test "update all with casting and dumping" do
     text = "hai"
     datetime = ~N[2014-01-16 20:26:51]

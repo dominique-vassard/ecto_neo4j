@@ -249,24 +249,32 @@ defmodule EctoNeo4j.QueryBuilder do
     {cql, params, inc + 1}
   end
 
-  defp build_update([%Ecto.Query.QueryExpr{expr: expression}], sources) do
-    {data, inc} = do_build_update_data(:set, Keyword.get(expression, :set, []), sources)
+  defp build_update(updates, sources, update_data \\ [], inc \\ 0)
 
-    {data, _} = do_build_update_data(:inc, Keyword.get(expression, :inc, []), sources, inc, data)
+  defp build_update(
+         [%Ecto.Query.QueryExpr{expr: expression} | rest],
+         sources,
+         update_data,
+         inc
+       ) do
+    {data, inc} = do_build_update_data(:set, Keyword.get(expression, :set, []), sources, inc)
 
+    {data, inc} =
+      do_build_update_data(:inc, Keyword.get(expression, :inc, []), sources, inc, data)
+
+    build_update(rest, sources, update_data ++ data, inc + 1)
+  end
+
+  defp build_update([], _, update_data, _) do
     {cqls, params} =
-      Enum.reduce(data, {[], %{}}, fn {sub_cql, sub_params}, {cqls, params} ->
+      Enum.reduce(update_data, {[], %{}}, fn {sub_cql, sub_params}, {cqls, params} ->
         {cqls ++ [sub_cql], Map.merge(params, sub_params)}
       end)
 
     {Enum.join(cqls, ", "), params}
   end
 
-  defp build_update([], _) do
-    {"", %{}}
-  end
-
-  defp do_build_update_data(update_type, expression, sources, inc \\ 0, result \\ [])
+  defp do_build_update_data(update_type, expression, sources, inc, result \\ [])
 
   defp do_build_update_data(
          update_type,
@@ -277,6 +285,13 @@ defmodule EctoNeo4j.QueryBuilder do
        ) do
     cql = build_update_cql(update_type, Atom.to_string(field), inc)
     params = %{"param_up#{inc}" => Enum.at(sources, sources_idx)}
+
+    do_build_update_data(update_type, tail, sources, inc + 1, result ++ [{cql, params}])
+  end
+
+  defp do_build_update_data(update_type, [{field, value} | tail], sources, inc, result) do
+    cql = build_update_cql(update_type, Atom.to_string(field), inc)
+    params = %{"param_up#{inc}" => value}
 
     do_build_update_data(update_type, tail, sources, inc + 1, result ++ [{cql, params}])
   end
