@@ -18,7 +18,7 @@ defmodule EctoNeo4j.QueryBuilder do
 
     {cql_where, where_params} = build_where(wheres, sources)
 
-    cql_return = build_return(query.select)
+    cql_return = build_distinct(query.distinct) <> build_return(query.select)
 
     cql_order_by = build_order_bys(query.order_bys)
 
@@ -46,6 +46,14 @@ defmodule EctoNeo4j.QueryBuilder do
   def build(query_type, schema, sources, opts) do
     query = from(s in schema)
     build(query_type, query, sources, opts)
+  end
+
+  defp build_distinct(%Ecto.Query.QueryExpr{}) do
+    "DISTINCT "
+  end
+
+  defp build_distinct(_) do
+    ""
   end
 
   defp build_return(%{fields: []}) do
@@ -84,8 +92,15 @@ defmodule EctoNeo4j.QueryBuilder do
     |> Enum.join(", ")
   end
 
-  defp format_return_field({aggregate, [], [field]}) do
-    format_operator(aggregate) <> "(" <> resolve_field_name(field) <> ")"
+  defp format_return_field({aggregate, [], [field | distinct]}) do
+    cql_distinct =
+      if length(distinct) > 0 do
+        "DISTINCT "
+      else
+        ""
+      end
+
+    format_operator(aggregate) <> "(" <> cql_distinct <> resolve_field_name(field) <> ")"
   end
 
   defp format_return_field(field) do

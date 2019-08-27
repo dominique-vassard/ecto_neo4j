@@ -78,8 +78,15 @@ defmodule EctoNeo4j.Behaviour.Queryable do
     resolve_field_name(field)
   end
 
-  defp format_result_field({aggregate, [], [field]}) do
-    Atom.to_string(aggregate) <> "(n." <> resolve_field_name(field) <> ")"
+  defp format_result_field({aggregate, [], [field | distinct]}) do
+    cql_distinct =
+      if length(distinct) > 0 do
+        "DISTINCT "
+      else
+        ""
+      end
+
+    Atom.to_string(aggregate) <> "(#{cql_distinct}n." <> resolve_field_name(field) <> ")"
   end
 
   defp resolve_field_name({{:., _, [{:&, [], [0]}, field_name]}, [], []}) do

@@ -1511,6 +1511,7 @@ defmodule Ecto.Integration.RepoTest do
     end
   end
 
+  @tag :supported
   test "query count distinct" do
     TestRepo.insert!(%Post{title: "1"})
     TestRepo.insert!(%Post{title: "1"})
@@ -1520,6 +1521,7 @@ defmodule Ecto.Integration.RepoTest do
     assert [2] == Post |> select([p], count(p.title, :distinct)) |> TestRepo.all()
   end
 
+  @tag :supported
   test "query where interpolation" do
     post1 = TestRepo.insert!(%Post{text: "x", title: "hello"})
     post2 = TestRepo.insert!(%Post{text: "y", title: "goodbye"})
