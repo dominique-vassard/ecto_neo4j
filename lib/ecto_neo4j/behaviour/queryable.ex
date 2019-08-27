@@ -79,17 +79,17 @@ defmodule EctoNeo4j.Behaviour.Queryable do
   end
 
   defp format_result_field({aggregate, [], [field]}) do
-    Atom.to_string(aggregate) <> "(" <> resolve_field_name(field) <> ")"
+    Atom.to_string(aggregate) <> "(n." <> resolve_field_name(field) <> ")"
   end
 
   defp resolve_field_name({{:., _, [{:&, [], [0]}, field_name]}, [], []}) do
-    "n." <> Atom.to_string(field_name)
+    Atom.to_string(field_name)
   end
 
-  defp manage_id(%{"n.nodeId" => node_id} = data) do
+  defp manage_id(%{"nodeId" => node_id} = data) do
     data
-    |> Map.put("n.id", node_id)
-    |> Enum.reject(fn {key, _} -> key == "n.nodeId" end)
+    |> Map.put("id", node_id)
+    |> Enum.reject(fn {key, _} -> key == "nodeId" end)
     |> Map.new()
   end
 

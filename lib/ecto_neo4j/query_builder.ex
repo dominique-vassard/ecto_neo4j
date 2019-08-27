@@ -52,15 +52,36 @@ defmodule EctoNeo4j.QueryBuilder do
     "n"
   end
 
-  defp build_return(%{fields: select_fields}) do
-    select_fields
-    # |> Enum.map(&resolve_field_name/1)
-    |> Enum.map(&format_return_field/1)
-    |> Enum.join(", ")
+  defp build_return(%{expr: {:&, [], [0]}, fields: select_fields}) do
+    build_return_fields(select_fields)
   end
+
+  defp build_return(%{expr: {type, [], select_fields}, fields: alt_select_fields}) do
+    case type in [:%{}, :{}] do
+      true -> build_return_fields(select_fields)
+      _ -> build_return_fields(alt_select_fields)
+    end
+  end
+
+  defp build_return(%{expr: select_fields}) do
+    build_return_fields(select_fields)
+  end
+
+  # defp build_return(%{fields: select_fields}) do
+  #   select_fields
+  #   # |> Enum.map(&resolve_field_name/1)
+  #   |> Enum.map(&format_return_field/1)
+  #   |> Enum.join(", ")
+  # end
 
   defp build_return(_) do
     "n"
+  end
+
+  defp build_return_fields(fields) do
+    fields
+    |> Enum.map(&format_return_field/1)
+    |> Enum.join(", ")
   end
 
   defp format_return_field({aggregate, [], [field]}) do
@@ -68,7 +89,7 @@ defmodule EctoNeo4j.QueryBuilder do
   end
 
   defp format_return_field(field) do
-    resolve_field_name(field)
+    resolve_field_name(field, true)
   end
 
   defp build_limit(%Ecto.Query.QueryExpr{expr: res_limit}) do
@@ -87,8 +108,31 @@ defmodule EctoNeo4j.QueryBuilder do
     nil
   end
 
-  defp resolve_field_name({{:., _, [{:&, [], [0]}, field_name]}, [], []}) do
-    "n." <> format_field(field_name)
+  defp resolve_field_name(field_data, with_alias \\ false)
+
+  defp resolve_field_name({{:., _, [{:&, [], [0]}, field_name]}, [], []}, with_alias) do
+    field = format_field(field_name)
+    "n." <> field <> field_alias(field, with_alias)
+  end
+
+  defp resolve_field_name(
+         {field_alias, {{:., _, [{:&, [], [0]}, field_name]}, [], []}},
+         with_alias
+       ) do
+    field = format_field(field_name)
+    "n." <> field <> field_alias(field_alias, with_alias)
+  end
+
+  defp field_alias(field_alias, true) when is_atom(field_alias) do
+    " AS #{Atom.to_string(field_alias)}"
+  end
+
+  defp field_alias(field_alias, true) do
+    " AS #{field_alias}"
+  end
+
+  defp field_alias(_field_alias, false) do
+    ""
   end
 
   # defp build_where(%Ecto.Query.BooleanExpr{expr: expr}) do

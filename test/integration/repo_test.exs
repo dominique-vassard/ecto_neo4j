@@ -1270,6 +1270,7 @@ defmodule Ecto.Integration.RepoTest do
   end
 
   describe "query select" do
+    @tag :supported
     test "expressions" do
       %Post{} = TestRepo.insert!(%Post{title: "1", text: "hai"})
 
@@ -1279,30 +1280,42 @@ defmodule Ecto.Integration.RepoTest do
       assert [["1", "hai"]] ==
                TestRepo.all(from p in Post, select: [p.title, p.text])
 
-      assert [%{:title => "1", 3 => "hai", "text" => "hai"}] ==
-               TestRepo.all(
-                 from p in Post,
-                   select: %{
-                     :title => p.title,
-                     "text" => p.text,
-                     3 => p.text
-                   }
-               )
+      # integer alias isn't supported and in fact is not recommended in any db
+      # assert [%{:title => "1", 3 => "hai", "text" => "hai"}] ==
+      #          TestRepo.all(
+      #            from p in Post,
+      #              select: %{
+      #                :title => p.title,
+      #                "text" => p.text,
+      #                3 => p.text
+      #              }
+      #          )
 
-      assert [%{:title => "1", "1" => "hai", "text" => "hai"}] ==
+      assert [%{:title => "1", "text" => "hai"}] ==
                TestRepo.all(
                  from p in Post,
                    select: %{
                      :title => p.title,
-                     p.title => p.text,
                      "text" => p.text
                    }
                )
+
+      # This is not supported!!!
+      # assert [%{:title => "1", "1" => "hai", "text" => "hai"}] ==
+      #          TestRepo.all(
+      #            from p in Post,
+      #              select: %{
+      #                :title => p.title,
+      #                p.title => p.text,
+      #                "text" => p.text
+      #              }
+      #          )
 
       assert [%Foo{title: "1"}] ==
                TestRepo.all(from p in Post, select: %Foo{title: p.title})
     end
 
+    @tag :to_be_implemented
     test "map update" do
       %Post{} = TestRepo.insert!(%Post{title: "1", text: "hai"})
 
@@ -1325,6 +1338,7 @@ defmodule Ecto.Integration.RepoTest do
       end
     end
 
+    @tag :supported
     test "take with structs" do
       %{id: pid1} = TestRepo.insert!(%Post{title: "1"})
       %{id: pid2} = TestRepo.insert!(%Post{title: "2"})
@@ -1349,6 +1363,7 @@ defmodule Ecto.Integration.RepoTest do
       assert %Post{id: ^pid3} = p3
     end
 
+    @tag :supported
     test "take with maps" do
       %{id: pid1} = TestRepo.insert!(%Post{title: "1"})
       %{id: pid2} = TestRepo.insert!(%Post{title: "2"})
@@ -1367,6 +1382,7 @@ defmodule Ecto.Integration.RepoTest do
       assert p3 == %{id: pid3}
     end
 
+    @tag :unsupported
     test "take with preload assocs" do
       %{id: pid} = TestRepo.insert!(%Post{title: "post"})
       TestRepo.insert!(%Comment{post_id: pid, text: "comment"})
@@ -1384,6 +1400,7 @@ defmodule Ecto.Integration.RepoTest do
       assert p == %{id: pid, title: "post", comments: [%{text: "comment", post_id: pid}]}
     end
 
+    @tag :unsupported
     test "take with nil preload assoc" do
       %{id: cid} = TestRepo.insert!(%Comment{text: "comment"})
       fields = [:id, :text, post: [:title]]
@@ -1398,6 +1415,7 @@ defmodule Ecto.Integration.RepoTest do
       assert c == %{id: cid, text: "comment", post: nil}
     end
 
+    @tag :unsupported
     test "take with join assocs" do
       %{id: pid} = TestRepo.insert!(%Post{title: "post"})
       %{id: cid} = TestRepo.insert!(%Comment{post_id: pid, text: "comment"})
@@ -1421,6 +1439,7 @@ defmodule Ecto.Integration.RepoTest do
       assert p == %{id: pid, title: "post", comments: [%{text: "comment", post_id: pid, id: cid}]}
     end
 
+    @tag :supported
     test "take with single nil column" do
       %Post{} = TestRepo.insert!(%Post{title: "1", counter: nil})
 
@@ -1428,6 +1447,7 @@ defmodule Ecto.Integration.RepoTest do
                TestRepo.one(from p in Post, where: p.title == "1", select: [:counter])
     end
 
+    @tag :unsupported
     test "take with join assocs and single nil column" do
       %{id: post_id} = TestRepo.insert!(%Post{title: "1"}, counter: nil)
       TestRepo.insert!(%Comment{post_id: post_id, text: "comment"})
@@ -1441,12 +1461,14 @@ defmodule Ecto.Integration.RepoTest do
                )
     end
 
+    @tag :supported
     test "field source" do
       TestRepo.insert!(%Permalink{url: "url"})
       assert ["url"] = Permalink |> select([p], p.url) |> TestRepo.all()
       assert [1] = Permalink |> select([p], count(p.url)) |> TestRepo.all()
     end
 
+    @tag :supported
     test "merge" do
       %Post{} = TestRepo.insert!(%Post{title: "1", counter: nil})
 
@@ -1477,6 +1499,7 @@ defmodule Ecto.Integration.RepoTest do
                |> TestRepo.all()
     end
 
+    @tag :unsupported
     test "merge with update on self" do
       %Post{} = TestRepo.insert!(%Post{title: "1", counter: 1})
 
