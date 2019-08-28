@@ -18,6 +18,7 @@ defmodule Ecto.Integration.RepoTest do
 
   setup do
     # TestRepo.delete_all(Post)
+
     Bolt.Sips.query!(Bolt.Sips.conn(), "MATCH (n) DETACH DELETE n")
     :ok
   end

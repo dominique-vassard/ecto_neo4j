@@ -74,6 +74,7 @@ end
 # _ = EctoMnesia.Storage.storage_up(TestRepo.config())
 
 {:ok, _pid} = Ecto.Integration.TestRepo.start_link()
+
 # {:ok, _pid} = Ecto.Integration.PoolRepo.start_link()
 # {:ok, _pid} = TestRepo.start_link()
 
