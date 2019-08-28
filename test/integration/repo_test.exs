@@ -1547,6 +1547,7 @@ defmodule Ecto.Integration.RepoTest do
 
   describe "upsert via insert" do
     @describetag :upsert
+    @describetag :unsupported
 
     test "on conflict raise" do
       {:ok, inserted} = TestRepo.insert(%Post{title: "first"}, on_conflict: :raise)
@@ -1808,6 +1809,7 @@ defmodule Ecto.Integration.RepoTest do
 
   describe "upsert via insert_all" do
     @describetag :upsert_all
+    @describetag :unsupported
 
     test "on conflict raise" do
       post = [title: "first", uuid: Ecto.UUID.generate()]
