@@ -50,4 +50,7 @@ defmodule EctoNeo4j.Adapter do
     to: EctoNeo4j.Behaviour.Schema
 
   defdelegate delete(adapter_meta, schema_meta, filters, options), to: EctoNeo4j.Behaviour.Schema
+
+  defdelegate query(cql, params \\ %{}, opts \\ []), to: EctoNeo4j.Behaviour.Queryable
+  defdelegate query!(cql, params \\ %{}, opts \\ []), to: EctoNeo4j.Behaviour.Queryable
 end
