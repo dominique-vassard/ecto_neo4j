@@ -3,13 +3,18 @@ defmodule EctoNeo4j.MixProject do
 
   def project do
     [
+      name: "EctoNeo4j",
       app: :ecto_neo4j,
-      version: "0.1.0",
+      version: "0.2.0",
       elixir: "~> 1.8",
-      elixirc_paths: elixirc_paths(Mix.env()),
+      package: package(),
+      description: "Ecto adapter for Neo4j graph database",
+      build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
-      test_coverage: [tool: ExCoveralls],
-      deps: deps()
+      elixirc_paths: elixirc_paths(Mix.env()),
+      deps: deps(),
+      source_url: "https://github.com/dominique-vassard/ecto_neo4j",
+      docs: docs()
     ]
   end
 
@@ -24,14 +29,28 @@ defmodule EctoNeo4j.MixProject do
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
+  defp package() do
+    %{
+      licenses: ["Apache-2.0"],
+      maintainers: ["Dominique VASSARD"],
+      links: %{"Github" => "https://github.com/dominique-vassard/ecto_neo4j"}
+    }
+  end
+
+  defp docs() do
+    [
+      main: "readme",
+      extras: ["README.md"]
+    ]
+  end
+
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
       {:ecto, "~> 3.1"},
       {:bolt_sips, "~> 2.0.0-rc.2"},
       {:ex_doc, "~> 0.19", only: :dev, runtime: false},
-      {:dialyxir, "~> 1.0.0-rc.4", only: [:dev], runtime: false},
-      {:excoveralls, "~> 0.10", only: :test}
+      {:dialyxir, "~> 1.0.0-rc.4", only: [:dev], runtime: false}
     ]
   end
 end

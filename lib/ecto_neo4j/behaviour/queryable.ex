@@ -1,6 +1,4 @@
 defmodule EctoNeo4j.Behaviour.Queryable do
-  # import Ecto.Query
-  # alias EctoNeo4j.Cql.Node, as: NodeCql
   alias EctoNeo4j.QueryBuilder
 
   def prepare(:all, query) do
@@ -23,15 +21,8 @@ defmodule EctoNeo4j.Behaviour.Queryable do
         _preprocess,
         opts \\ []
       ) do
-    # query
-    # |> Map.from_struct()
-    # |> IO.inspect()
-
     {cypher_query, params} = QueryBuilder.build(query_type, query, sources, opts)
 
-    # do_execute(query)
-
-    # {nb_ops, res} =
     case query(cypher_query, params) do
       {:ok, results} ->
         res = Enum.map(results.results, &format_results(&1, query.select))
@@ -53,10 +44,6 @@ defmodule EctoNeo4j.Behaviour.Queryable do
   defp format_final_result(_, results) do
     results
   end
-
-  # defp format_results(%{"n" => record}, _, schema) do
-  #   to_struct(record, schema)
-  # end
 
   defp format_results(raw_results, %Ecto.Query.SelectExpr{fields: fields}) do
     results = manage_id(raw_results)
@@ -104,145 +91,6 @@ defmodule EctoNeo4j.Behaviour.Queryable do
     data
   end
 
-  # defp format_results(results, fields, _) do
-  # TODO
-  # results
-  # |> Enum.filter(fun)
-  # end
-
-  # defp do_execute(queryable_or_model, opts \\ [])
-
-  # defp do_execute(queryable, _opts) do
-  #   %{from: %Ecto.Query.FromExpr{source: {_, model}}} = Map.from_struct(queryable)
-  #   {cql, params} = build_query(queryable)
-
-  #   case query(cql, params) do
-  #     {:ok, results} ->
-  #       results
-  #       |> Enum.map(fn
-  #         %{"n" => record} ->
-  #           to_struct(record, model)
-
-  #         results ->
-  #           results
-  #           |> Map.values()
-  #       end)
-
-  #     {:error, error} ->
-  #       raise error
-  #   end
-  # end
-
-  # defp do_execute(model, opts) do
-  #   query = from(m in model)
-  #   do_execute(query, opts)
-  # end
-
-  # defp build_query(%Ecto.Query{} = queryable) do
-  #   %{from: %Ecto.Query.FromExpr{source: {_, model}}, select: selects, wheres: wheres} =
-  #     Map.from_struct(queryable)
-
-  #   {cql_where, params} = build_where(wheres)
-  #   cql_return = build_return(selects)
-
-  #   cql = NodeCql.build_query(model.__schema__(:source), cql_where, cql_return)
-
-  #   {cql, params}
-  # end
-
-  # defp build_return(nil) do
-  #   "n"
-  # end
-
-  # defp build_return(%Ecto.Query.SelectExpr{expr: expression}) do
-  #   str =
-  #     expression
-  #     |> Macro.to_string()
-  #     |> String.replace("&0", "n")
-  #     |> String.replace("n.id", "n.nodeId")
-
-  #   Regex.replace(~r/\[|\]|\(|\)/, str, "")
-  # end
-
-  # defp build_where([]) do
-  #   {"", %{}}
-  # end
-
-  # defp build_where([%Ecto.Query.BooleanExpr{expr: expression, params: ecto_params}]) do
-  #   {cql_where, unbound_params, _} = do_build_where(expression)
-
-  #   # Merge unbound params and params explicitly bind in Query
-  #   params =
-  #     ecto_params
-  #     |> Enum.into(%{}, fn {value, {0, field}} ->
-  #       {field, value}
-  #     end)
-  #     |> Map.merge(unbound_params)
-
-  #   {cql_where, params}
-  # end
-
-  # defp do_build_where(expression, inc \\ 0)
-
-  # defp do_build_where(
-  #        {operator, _, [_, %Ecto.Query.Tagged{type: {_, field}, value: value}]},
-  #        inc
-  #      ) do
-  #   field_name =
-  #     field
-  #     |> format_field()
-  #     |> Atom.to_string()
-
-  #   cql = "n.#{field_name} #{format_operator(operator)} {param_#{inc}}"
-
-  #   params =
-  #     %{"param_#{inc}" => value}
-  #     |> Enum.map(fn {k, v} -> {String.to_atom(k), v} end)
-  #     |> Map.new()
-
-  #   {cql, params, inc}
-  # end
-
-  # defp do_build_where(
-  #        {operator, _, [{{:., _, [{:&, _, _}, field]}, [], []}, {:^, _, _}]},
-  #        inc
-  #      ) do
-  #   field_name =
-  #     field
-  #     |> format_field()
-  #     |> Atom.to_string()
-
-  #   cql = "n.#{field_name} #{format_operator(operator)} {#{field_name}}"
-  #   {cql, %{}, inc}
-  # end
-
-  # defp do_build_where({operation, _, [arg1, arg2]}, inc) do
-  #   {cql1, params1, inc} = do_build_where(arg1, inc + 1)
-  #   {cql2, params2, _} = do_build_where(arg2, inc + 1)
-
-  #   cql = "#{cql1} #{Atom.to_string(operation)} #{cql2}"
-  #   params = Map.merge(params1, params2)
-  #   {cql, params, inc + 1}
-  # end
-
-  # defp format_operator(:==) do
-  #   "="
-  # end
-
-  # defp format_operator(operator) when operator in [:>, :>=, :<, :<=] do
-  #   Atom.to_string(operator)
-  # end
-
-  # defp to_struct(result, struct_model) do
-  #   props =
-  #     result.properties
-  #     |> Enum.map(fn {k, v} -> {String.to_atom(k), v} end)
-  #     |> Map.new()
-  #     |> manage_id()
-
-  #   struct(struct_model, props)
-  # end
-
   @doc """
   Launch the given query with params on database.
 
@@ -257,6 +105,9 @@ defmodule EctoNeo4j.Behaviour.Queryable do
     do_query(cql, params, opts)
   end
 
+  @doc """
+  Same as `query` but raises in case of error;
+  """
   def query!(cql, params \\ %{}, opts \\ []) do
     case do_query(cql, params, opts) do
       {:ok, result} -> result
@@ -270,18 +121,9 @@ defmodule EctoNeo4j.Behaviour.Queryable do
     end)
   end
 
-  # @spec manage_id(map()) :: map()
-  # defp manage_id(%{nodeId: node_id} = data) do
-  #   data
-  #   |> Map.put(:id, node_id)
-  #   |> Map.drop([:node_id])
-  # end
-
-  # defp manage_id(data), do: data
-
-  # defp format_field(:id), do: :nodeId
-  # defp format_field(field), do: field
-
+  @doc """
+  Not implemented yet.
+  """
   def stream(_, _, _, _, _, _opts \\ []) do
     raise(
       ArgumentError,

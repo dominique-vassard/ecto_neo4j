@@ -1,4 +1,6 @@
 defmodule EctoNeo4j.QueryBuilder do
+  @moduledoc false
+
   import Ecto.Query
   alias EctoNeo4j.Cql.Node, as: NodeCql
   alias EctoNeo4j.Helper
@@ -9,10 +11,6 @@ defmodule EctoNeo4j.QueryBuilder do
   def build(query_type, %Ecto.Query{} = query, sources, _opts) do
     {source, _schema} = query.from.source
     wheres = query.wheres
-
-    # query
-    # |> Map.from_struct()
-    # |> IO.inspect()
 
     {cql_update, update_params} = build_update(query.updates, sources)
 
@@ -74,13 +72,6 @@ defmodule EctoNeo4j.QueryBuilder do
   defp build_return(%{expr: select_fields}) do
     build_return_fields(select_fields)
   end
-
-  # defp build_return(%{fields: select_fields}) do
-  #   select_fields
-  #   # |> Enum.map(&resolve_field_name/1)
-  #   |> Enum.map(&format_return_field/1)
-  #   |> Enum.join(", ")
-  # end
 
   defp build_return(_) do
     "n"
@@ -150,10 +141,6 @@ defmodule EctoNeo4j.QueryBuilder do
     ""
   end
 
-  # defp build_where(%Ecto.Query.BooleanExpr{expr: expr}) do
-  #   do_build_where(expr)
-  # end
-
   defp build_where([%Ecto.Query.BooleanExpr{expr: expression, params: ecto_params}], sources) do
     {cql_where, unbound_params, _} = do_build_where(expression, sources)
 
@@ -220,15 +207,6 @@ defmodule EctoNeo4j.QueryBuilder do
 
     {cql, params, inc}
   end
-
-  # defp do_build_where(
-  #        {operator, _, [{{:., _, [{:&, _, _}, field]}, [], []}, {:^, _, _}]},
-  #        sources,
-  #        inc
-  #      ) do
-  #   cql = "n.#{format_field(field)} #{format_operator(operator)} {#{format_field(field)}}"
-  #   {cql, %{}, inc}
-  # end
 
   defp do_build_where(
          {operator, _, [{{:., _, [{:&, _, _}, field]}, [], []}, {:^, _, [sources_index]}]},
@@ -366,26 +344,6 @@ defmodule EctoNeo4j.QueryBuilder do
   defp build_update_cql(:inc, field, inc) do
     "n.#{field} = n.#{field} + {param_up#{inc}}"
   end
-
-  # defp do_build_update_data(expression, sources, inc \\ 0, result \\ []) do
-  #   {cqls, params} =
-  #     expression
-  #     |> Enum.reduce([], fn {field, {:^, [], [sources_idx]}}, acc ->
-  #       cql = "n.#{Atom.to_string(field)} = {param_#{inc}}"
-  #       params = %{"param_#{inc}" => Enum.at(sources, sources_idx)}
-  #       acc ++ [{cql, params}]
-  #     end)
-  #     |> IO.inspect()
-  #     |> Enum.reduce({[], %{}}, fn {sub_cql, sub_params}, {cqls, params} ->
-  #       {cqls ++ sub_cql, Map.merge(params, sub_params)}
-  #     end)
-
-  #   # {[Enum.join(cqls, ", ")], params}
-  # end
-
-  # defp do_build_update_data(nil, _, inc) do
-  #   {[], %{}, inc}
-  # end
 
   defp build_order_bys([]) do
     ""

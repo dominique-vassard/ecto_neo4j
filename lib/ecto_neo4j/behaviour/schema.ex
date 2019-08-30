@@ -1,4 +1,6 @@
 defmodule EctoNeo4j.Behaviour.Schema do
+  @moduledoc false
+
   alias EctoNeo4j.Cql.Node, as: NodeCql
 
   def autogenerate(:id), do: :erlang.system_time(:microsecond)
