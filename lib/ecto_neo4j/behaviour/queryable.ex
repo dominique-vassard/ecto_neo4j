@@ -61,6 +61,10 @@ defmodule EctoNeo4j.Behaviour.Queryable do
     []
   end
 
+  defp format_result_field(%Ecto.Query.Tagged{value: field}) do
+    resolve_field_name(field)
+  end
+
   defp format_result_field({{:., _, [{:&, [], [0]}, _]}, _, _} = field) do
     resolve_field_name(field)
   end
@@ -101,24 +105,28 @@ defmodule EctoNeo4j.Behaviour.Queryable do
   ### Example
       EctoNeo4j.Repo.query("MATCH (n:Post {uuid: {uuid}}", %{uuid: "unique_id"})
   """
-  def query(cql, params \\ %{}, opts \\ []) do
-    do_query(cql, params, opts)
+  def query(cql, params \\ %{}, _opts \\ []) do
+    {:ok, res} =
+      Bolt.Sips.transaction(Bolt.Sips.conn(), fn conn ->
+        Bolt.Sips.query(conn, cql, params)
+      end)
+
+    res
   end
 
   @doc """
   Same as `query` but raises in case of error;
   """
-  def query!(cql, params \\ %{}, opts \\ []) do
-    case do_query(cql, params, opts) do
+  def query!(cql, params \\ %{}, _opts \\ []) do
+    result =
+      Bolt.Sips.transaction(Bolt.Sips.conn(), fn conn ->
+        Bolt.Sips.query!(conn, cql, params)
+      end)
+
+    case result do
       {:ok, result} -> result
       {:error, error} -> raise error
     end
-  end
-
-  defp do_query(cql, params, _opts) do
-    Bolt.Sips.transaction(Bolt.Sips.conn(), fn conn ->
-      Bolt.Sips.query!(conn, cql, params)
-    end)
   end
 
   @doc """
