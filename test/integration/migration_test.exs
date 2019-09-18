@@ -1,5 +1,5 @@
 defmodule Ecto.Integration.MigrationTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Ecto.Integration.{TestRepo, PoolRepo}
 
@@ -164,13 +164,20 @@ defmodule Ecto.Integration.MigrationTest do
       create table(:drop_col_migration) do
         add(:value, :integer)
         add(:to_be_removed, :integer)
+        add(:removed_index, :integer)
+        add(:removed_constraint, :integer)
       end
+
+      create(index(:drop_col_migration, [:removed_index]))
+      create(index(:drop_col_migration, [:removed_constraint], unique: true))
 
       # execute("INSERT INTO drop_col_migration (value, to_be_removed) VALUES (1, 2)")
       execute("CREATE (:drop_col_migration {value: 1, to_be_removed: 2})")
 
       alter table(:drop_col_migration) do
         remove(:to_be_removed)
+        remove(:removed_index)
+        remove(:removed_constraint)
       end
     end
 
@@ -186,6 +193,8 @@ defmodule Ecto.Integration.MigrationTest do
       create table(:rename_col_migration) do
         add(:to_be_renamed, :integer)
       end
+
+      create(index(:rename_col_migration, [:to_be_renamed]))
 
       execute("CREATE (:rename_col_migration {to_be_renamed: 1})")
       rename(table(:rename_col_migration), :to_be_renamed, to: :was_renamed)
@@ -341,6 +350,28 @@ defmodule Ecto.Integration.MigrationTest do
     end
   end
 
+  defmodule AlterPrimaryKeyWithDeletionMigration do
+    use Ecto.Migration
+
+    def up do
+      create table(:no_pk, primary_key: false) do
+        add(:dummy, :string)
+      end
+
+      alter table(:no_pk) do
+        add(:id, :serial, primary_key: true)
+      end
+
+      alter table(:no_pk) do
+        modify(:id, :serial, primary_key: false)
+      end
+    end
+
+    def down do
+      drop_if_exists(table(:no_pk))
+    end
+  end
+
   import Ecto.Query, only: [from: 2]
   import Ecto.Migrator, only: [up: 4, down: 4]
 
@@ -385,10 +416,11 @@ defmodule Ecto.Integration.MigrationTest do
              EctoNeo4j.Adapter.query!(cql_constraint)
 
     assert :ok == down(PoolRepo, num, CreateMigration, log: false)
-    assert %Bolt.Sips.Response{results: [%{"nb_nodes" => 0}]} = EctoNeo4j.Adapter.query!(cql_node)
 
-    assert %Bolt.Sips.Response{results: [%{"nb_constraints" => 0}]} =
-             EctoNeo4j.Adapter.query!(cql_constraint)
+    # assert %Bolt.Sips.Response{results: [%{"nb_nodes" => 0}]} = EctoNeo4j.Adapter.query!(cql_node)
+
+    # assert %Bolt.Sips.Response{results: [%{"nb_constraints" => 0}]} =
+    #          EctoNeo4j.Adapter.query!(cql_constraint)
   end
 
   @tag :supported
@@ -564,5 +596,12 @@ defmodule Ecto.Integration.MigrationTest do
   test "alter primary key", %{migration_number: num} do
     assert :ok == up(PoolRepo, num, AlterPrimaryKeyMigration, log: false)
     assert :ok == down(PoolRepo, num, AlterPrimaryKeyMigration, log: false)
+  end
+
+  @tag :supported
+  @tag :alter_primary_key
+  test "alter primary key with deletion", %{migration_number: num} do
+    assert :ok == up(PoolRepo, num, AlterPrimaryKeyWithDeletionMigration, log: false)
+    assert :ok == down(PoolRepo, num, AlterPrimaryKeyWithDeletionMigration, log: false)
   end
 end

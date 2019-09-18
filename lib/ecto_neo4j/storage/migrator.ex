@@ -35,14 +35,7 @@ defmodule EctoNeo4j.Storage.Migrator do
     |> NodeCql.delete_nodes()
     |> EctoNeo4j.Adapter.query!()
 
-    [NodeCql.list_all_constraints(node_label), NodeCql.list_all_indexes(node_label)]
-    |> Enum.map(fn cql ->
-      EctoNeo4j.Adapter.query!(cql)
-      |> Map.get(:records, [])
-    end)
-    |> List.flatten()
-    |> Enum.map(&NodeCql.drop_constraint_index_from_cql/1)
-    |> Enum.map(&EctoNeo4j.Adapter.query/1)
+    drop_all_constraints_and_indexes(node_label)
 
     {:ok, []}
   end
@@ -51,6 +44,12 @@ defmodule EctoNeo4j.Storage.Migrator do
     NodeCql.relabel(old_name, new_name)
     |> EctoNeo4j.Adapter.query!()
 
+    ci_list = [
+      NodeCql.list_all_constraints(old_name),
+      NodeCql.list_all_indexes(old_name)
+    ]
+
+    move_constraints_indexes(ci_list, old_name, new_name)
     {:ok, []}
   end
 
@@ -68,6 +67,14 @@ defmodule EctoNeo4j.Storage.Migrator do
     NodeCql.rename_property(node_label, old_name, new_name)
     |> EctoNeo4j.Adapter.query!()
 
+    # Move constraints and indexes to the new property
+    ci_list = [
+      NodeCql.list_all_constraints(node_label, old_name),
+      NodeCql.list_all_indexes(node_label, old_name)
+    ]
+
+    move_constraints_indexes(ci_list, Atom.to_string(old_name), Atom.to_string(new_name))
+
     {:ok, []}
   end
 
@@ -77,7 +84,7 @@ defmodule EctoNeo4j.Storage.Migrator do
   def execute_ddl(_, {:create, %Index{columns: cols, unique: true, table: node_label}}, _) do
     case create_constraint(node_label, cols) do
       {:ok, _} -> {:ok, []}
-      {:error, error} -> raise error
+      {:error, error} -> raise error.message
     end
   end
 
@@ -93,7 +100,7 @@ defmodule EctoNeo4j.Storage.Migrator do
   def execute_ddl(_, {:drop, %Index{columns: cols, unique: true, table: node_label}}, _) do
     case drop_constraint(node_label, cols) do
       {:ok, _} -> {:ok, []}
-      {:error, error} -> raise error
+      {:error, error} -> raise error.message
     end
   end
 
@@ -113,7 +120,7 @@ defmodule EctoNeo4j.Storage.Migrator do
   def execute_ddl(_, {:create, %Index{columns: cols, table: node_label}}, _) do
     case create_index(node_label, cols) do
       {:ok, _} -> {:ok, []}
-      {:error, error} -> raise error
+      {:error, error} -> raise error.message
     end
   end
 
@@ -125,7 +132,7 @@ defmodule EctoNeo4j.Storage.Migrator do
   def execute_ddl(_, {:drop, %Index{columns: cols, table: node_label}}, _) do
     case drop_index(node_label, cols) do
       {:ok, _} -> {:ok, []}
-      {:error, error} -> raise error
+      {:error, error} -> raise error.message
     end
   end
 
@@ -159,6 +166,9 @@ defmodule EctoNeo4j.Storage.Migrator do
 
   defp do_treat_operations(node_label, [{:remove, col} | operations], data) do
     new_data = Map.put(data, col, nil)
+
+    drop_all_constraints_and_indexes(node_label, col)
+
     do_treat_operations(node_label, operations, new_data)
   end
 
@@ -190,6 +200,18 @@ defmodule EctoNeo4j.Storage.Migrator do
     do_treat_operations(node_label, operations, data)
   end
 
+  defp do_treat_operations(
+         node_label,
+         [{op, col, _, [{:primary_key, false} | _]} | operations],
+         data
+       )
+       when op in @add_ops do
+    NodeCql.drop_constraint(node_label, [col])
+    |> EctoNeo4j.Adapter.query()
+
+    do_treat_operations(node_label, operations, data)
+  end
+
   defp do_treat_operations(node_label, [{op, _, _, _} | operations], data)
        when op in @add_ops do
     do_treat_operations(node_label, operations, data)
@@ -213,6 +235,39 @@ defmodule EctoNeo4j.Storage.Migrator do
   defp drop_index(node_label, cols) do
     NodeCql.drop_index(node_label, cols)
     |> EctoNeo4j.Adapter.query()
+  end
+
+  defp drop_all_constraints_and_indexes(node_label, col \\ nil) do
+    [NodeCql.list_all_constraints(node_label, col), NodeCql.list_all_indexes(node_label, col)]
+    |> Enum.map(fn cql ->
+      EctoNeo4j.Adapter.query!(cql)
+      |> Map.get(:records, [])
+    end)
+    |> List.flatten()
+    |> Enum.map(&NodeCql.drop_constraint_index_from_cql/1)
+    |> Enum.map(&EctoNeo4j.Adapter.query/1)
+  end
+
+  defp move_constraints_indexes(cstr_idx_list, from, to) do
+    ci_list =
+      cstr_idx_list
+      |> Enum.map(fn cql ->
+        EctoNeo4j.Adapter.query!(cql)
+        |> Map.get(:records, [])
+      end)
+      |> List.flatten()
+
+    ci_list
+    |> Enum.map(fn cql ->
+      cql
+      |> String.replace(from, to)
+      |> NodeCql.create_constraint_index_from_cql()
+      |> EctoNeo4j.Adapter.query()
+    end)
+
+    ci_list
+    |> Enum.map(&NodeCql.drop_constraint_index_from_cql/1)
+    |> Enum.map(&EctoNeo4j.Adapter.query/1)
   end
 
   def lock_for_migrations(_repo, query, _opts, fun) do
