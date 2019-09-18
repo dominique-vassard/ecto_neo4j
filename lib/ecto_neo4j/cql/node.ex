@@ -106,16 +106,21 @@ defmodule EctoNeo4j.Cql.Node do
       ", %{f_id: 5, title: "New title"}}
   """
   @spec update(String.t(), map(), map()) :: {String.t(), map()}
-  def update(node_label, data, filters) do
+  def update(node_label, data, filters \\ %{}) do
     set =
       data
       |> Enum.map(fn {k, _} -> "n.#{k} = {#{k}}" end)
       |> Enum.join(", \n")
 
-    where =
-      filters
-      |> Enum.map(fn {k, _} -> "n.#{k} = {f_#{k}}" end)
-      |> Enum.join(" AND ")
+    cql_where =
+      if map_size(filters) > 0 do
+        where =
+          filters
+          |> Enum.map(fn {k, _} -> "n.#{k} = {f_#{k}}" end)
+          |> Enum.join(" AND ")
+
+        "WHERE\n  " <> where
+      end
 
     formated_filters =
       filters
@@ -127,8 +132,7 @@ defmodule EctoNeo4j.Cql.Node do
     cql = """
     MATCH
       (n:#{node_label})
-    WHERE
-      #{where}
+    #{cql_where}
     SET
       #{set}
     RETURN
@@ -178,6 +182,38 @@ defmodule EctoNeo4j.Cql.Node do
   end
 
   @doc """
+  Returns cypher query to delete all databse data.
+
+  ## Example
+
+      iex> EctoNeo4j.Cql.Node.delete_all()
+      "MATCH
+        (n)
+      DETACH DELETE
+        n
+      "
+  """
+  @spec delete_all() :: String.t()
+  def delete_all() do
+    """
+    MATCH
+      (n)
+    DETACH DELETE
+      n
+    """
+  end
+
+  @spec delete_nodes(String.t()) :: String.t()
+  def delete_nodes(node_label) do
+    """
+    MATCH
+      (n:#{node_label})
+    DETACH DELETE
+      n
+    """
+  end
+
+  @doc """
   Builds a cypher query for given `node_label`, `where`, `return` parts.
 
   ## Example
@@ -215,6 +251,7 @@ defmodule EctoNeo4j.Cql.Node do
   """
   @spec build_query(
           :match | :delete | :update,
+          String.t(),
           String.t(),
           String.t(),
           String.t(),
@@ -290,6 +327,262 @@ defmodule EctoNeo4j.Cql.Node do
     #{cql_order_by}
     #{cql_skip}
     #{cql_limit}
+    """
+  end
+
+  @doc """
+  Handle creation of non unique indexes.
+
+  ## Example
+
+      iex> EctoNeo4j.Cql.Node.create_index("Post", [:title])
+      "CREATE INDEX ON :Post(title)"
+      iex> EctoNeo4j.Cql.Node.create_index("Post", [:title, :author])
+      "CREATE INDEX ON :Post(title, author)"
+
+  """
+  @spec create_index(String.t(), [String.t()]) :: String.t()
+  def create_index(node_label, columns) do
+    manage_index(node_label, columns, :create)
+  end
+
+  @doc """
+  Handle deletion of non unique indexes.
+
+  ## Example
+
+      iex> EctoNeo4j.Cql.Node.drop_index("Post", [:title])
+      "DROP INDEX ON :Post(title)"
+      iex> EctoNeo4j.Cql.Node.drop_index("Post", [:title, :author])
+      "DROP INDEX ON :Post(title, author)"
+
+  """
+  @spec drop_index(String.t(), [String.t()]) :: String.t()
+  def drop_index(node_label, columns) do
+    manage_index(node_label, columns, :drop)
+  end
+
+  @spec manage_index(String.t(), [String.t()], :create | :drop) :: String.t()
+  defp manage_index(node_label, columns, operation) when operation in [:create, :drop] do
+    op = operation |> Atom.to_string() |> String.upcase()
+    "#{op} INDEX ON :#{node_label}(#{Enum.join(columns, ", ")})"
+  end
+
+  @doc """
+  Handle creation of unique constraints.
+  Note that uniqueness on multiple properties is only available in Enterprise Edition
+
+  ## Example
+
+      iex> EctoNeo4j.Cql.Node.create_constraint("Post", [:title])
+      "CREATE CONSTRAINT ON (n:Post) ASSERT n.title IS UNIQUE"
+      iex> EctoNeo4j.Cql.Node.create_constraint("Post", [:title, :author])
+      "CREATE CONSTRAINT ON (n:Post) ASSERT (n.title, n.author) IS NODE KEY"
+
+  """
+  @spec create_constraint(String.t(), [String.t()]) :: String.t()
+  def create_constraint(node_label, [column]) do
+    manage_unique_constraint(node_label, column, :create)
+  end
+
+  def create_constraint(node_label, columns) do
+    manage_node_key(node_label, columns, :create)
+  end
+
+  @doc """
+  Handle deletion of unique constraints.
+  Note that uniqueness on multiple properties is only available in Enterprise Edition
+
+  ## Example
+
+      iex> EctoNeo4j.Cql.Node.drop_constraint("Post", [:title])
+      "DROP CONSTRAINT ON (n:Post) ASSERT n.title IS UNIQUE"
+      iex> EctoNeo4j.Cql.Node.drop_constraint("Post", [:title, :author])
+      "DROP CONSTRAINT ON (n:Post) ASSERT (n.title, n.author) IS NODE KEY"
+
+  """
+  @spec drop_constraint(String.t(), [String.t()]) :: String.t()
+  def drop_constraint(node_label, [column]) do
+    manage_unique_constraint(node_label, column, :drop)
+  end
+
+  def drop_constraint(node_label, columns) do
+    manage_node_key(node_label, columns, :drop)
+  end
+
+  @spec manage_unique_constraint(String.t(), String.t(), :create | :drop) :: String.t()
+  defp manage_unique_constraint(node_label, column, operation)
+       when operation in [:create, :drop] do
+    op =
+      operation
+      |> Atom.to_string()
+      |> String.upcase()
+
+    "#{op} CONSTRAINT ON (n:#{node_label}) ASSERT n.#{column} IS UNIQUE"
+  end
+
+  defp manage_node_key(node_label, columns, operation) when operation in [:create, :drop] do
+    op =
+      operation
+      |> Atom.to_string()
+      |> String.upcase()
+
+    cols =
+      columns
+      |> Enum.map(fn c -> "n.#{c}" end)
+      |> Enum.join(", ")
+
+    "#{op} CONSTRAINT ON (n:#{node_label}) ASSERT (#{cols}) IS NODE KEY"
+  end
+
+  @doc """
+  Handle creation of non null constraints.
+
+  ## Example
+
+      iex> EctoNeo4j.Cql.Node.create_non_null_constraint("Post", :title)
+      "CREATE CONSTRAINT ON (n:Post) ASSERT exists(n.title)"
+  """
+  @spec create_non_null_constraint(String.t(), String.t()) :: String.t()
+  def create_non_null_constraint(node_label, column) do
+    manage_non_null_constraint(node_label, column, :create)
+  end
+
+  @doc """
+  Handle deletion of non null constraints.
+
+  ## Example
+
+      iex> EctoNeo4j.Cql.Node.drop_non_null_constraint("Post", :title)
+      "DROP CONSTRAINT ON (n:Post) ASSERT exists(n.title)"
+  """
+  @spec drop_non_null_constraint(String.t(), String.t()) :: String.t()
+  def drop_non_null_constraint(node_label, column) do
+    manage_non_null_constraint(node_label, column, :drop)
+  end
+
+  @spec manage_non_null_constraint(String.t(), String.t(), :create | :drop) :: String.t()
+  defp manage_non_null_constraint(node_label, column, operation)
+       when operation in [:create, :drop] do
+    op =
+      operation
+      |> Atom.to_string()
+      |> String.upcase()
+
+    "#{op} CONSTRAINT ON (n:#{node_label}) ASSERT exists(n.#{column |> Atom.to_string()})"
+  end
+
+  @doc """
+  Builds a cypher query fir listing all the constraints for a specific node.
+
+  ## Example
+
+      iex> EctoNeo4j.Cql.Node.list_all_constraints("Post")
+      "CALL db.constraints()
+      YIELD description
+      WHERE description CONTAINS \\":Post\\"
+      RETURN description
+      "
+  """
+  @spec list_all_constraints(String.t()) :: String.t()
+  def list_all_constraints(node_label) do
+    """
+    CALL db.constraints()
+    YIELD description
+    WHERE description CONTAINS ":#{node_label}"
+    RETURN description
+    """
+  end
+
+  @doc """
+  Builds a cypher query fir listing all the indexes for a specific node.
+
+  ## Example
+
+      iex> EctoNeo4j.Cql.Node.list_all_indexes("Post")
+      "CALL db.indexes()
+      YIELD description
+      WHERE description CONTAINS \\":Post\\"
+      RETURN description
+      "
+  """
+  @spec list_all_indexes(String.t()) :: String.t()
+  def list_all_indexes(node_label) do
+    """
+    CALL db.indexes()
+    YIELD description
+    WHERE description CONTAINS ":#{node_label}"
+    RETURN description
+    """
+  end
+
+  @doc """
+  Builds a cypher for deleting a cosntraint or an index from the database.
+  Required a constraint cql similar to the one provided by `CALL db.constraints()`
+
+  ## Example
+
+      iex> constraint_cql = "CONSTRAINT ON ( posts:posts ) ASSERT posts.uuid IS UNIQUE"
+      iex> EctoNeo4j.Cql.Node.drop_constraint_index_from_cql(constraint_cql)
+      "DROP CONSTRAINT ON ( posts:posts ) ASSERT posts.uuid IS UNIQUE"
+      iex> index_cql = "INDEX ON :posts(nodeId)"
+      iex> EctoNeo4j.Cql.Node.drop_constraint_index_from_cql(index_cql)
+      "DROP INDEX ON :posts(nodeId)"
+  """
+  @spec drop_constraint_index_from_cql(String.t()) :: String.t()
+  def drop_constraint_index_from_cql(cql) do
+    "DROP " <> cql
+  end
+
+  @doc """
+  Bulds a query to rename a property
+
+  ## Example
+
+      iex> EctoNeo4j.Cql.Node.rename_property("Post", "titttle", "title")
+      "MATCH
+        (n:Post)
+      SET
+        n.title = n.titttle
+      REMOVE
+        n.titttle
+      "
+  """
+  @spec rename_property(String.t(), String.t(), String.t()) :: String.t()
+  def rename_property(node_label, old_name, new_name) do
+    """
+    MATCH
+      (n:#{node_label})
+    SET
+      n.#{new_name} = n.#{old_name}
+    REMOVE
+      n.#{old_name}
+    """
+  end
+
+  @doc """
+  Build a query to relabel a node.
+
+  ## Example
+
+      iex> EctoNeo4j.Cql.Node.relabel("Post", "NewPost")
+      "MATCH
+        (n:Post)
+      SET
+        n:NewPost
+      REMOVE
+        n:Post
+      "
+  """
+  @spec relabel(String.t(), String.t()) :: String.t()
+  def relabel(old_label, new_label) do
+    """
+    MATCH
+      (n:#{old_label})
+    SET
+      n:#{new_label}
+    REMOVE
+      n:#{old_label}
     """
   end
 end

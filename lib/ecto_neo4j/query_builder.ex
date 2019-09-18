@@ -77,6 +77,10 @@ defmodule EctoNeo4j.QueryBuilder do
     "n"
   end
 
+  defp build_return_fields(%Ecto.Query.Tagged{value: field}) do
+    format_return_field(field)
+  end
+
   defp build_return_fields(fields) do
     fields
     |> Enum.map(&format_return_field/1)

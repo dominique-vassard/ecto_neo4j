@@ -47,7 +47,8 @@ defmodule EctoNeo4j.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ecto, "~> 3.1"},
+      {:ecto, "~> 3.2"},
+      {:ecto_sql, "~> 3.2"},
       {:bolt_sips, "~> 2.0.0-rc.2"},
       {:ex_doc, "~> 0.19", only: :dev, runtime: false},
       {:dialyxir, "~> 1.0.0-rc.4", only: [:dev], runtime: false}

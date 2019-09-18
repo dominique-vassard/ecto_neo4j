@@ -7,8 +7,9 @@ defmodule EctoNeo4j.Adapter do
     {:ok, _} = Application.ensure_all_started(:bolt_sips, type)
   end
 
-  def init(_config) do
-    opts = Application.get_env(:bolt_sips, Bolt)
+  def init(config) do
+    opts = config || Application.get_env(:bolt_sips, Bolt)
+
     {:ok, Bolt.Sips.child_spec(opts), %{}}
   end
 
@@ -53,4 +54,11 @@ defmodule EctoNeo4j.Adapter do
 
   defdelegate query(cql, params \\ %{}, opts \\ []), to: EctoNeo4j.Behaviour.Queryable
   defdelegate query!(cql, params \\ %{}, opts \\ []), to: EctoNeo4j.Behaviour.Queryable
+
+  @behaviour Ecto.Adapter.Storage
+  defdelegate storage_up(config), to: EctoNeo4j.Storage
+  defdelegate storage_down(config), to: EctoNeo4j.Storage
+  defdelegate execute_ddl(repo, ddl, opts), to: EctoNeo4j.Storage.Migrator
+  defdelegate lock_for_migrations(repo, query, opts, fun), to: EctoNeo4j.Storage.Migrator
+  def supports_ddl_transaction?(), do: false
 end

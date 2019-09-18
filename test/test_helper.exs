@@ -18,11 +18,27 @@ Application.put_env(:ecto, :primary_key_type, :id)
 
 Application.put_env(:ecto, Ecto.Integration.TestRepo, adapter: EctoNeo4j.Adapter)
 
+Application.put_env(:ecto, Ecto.Integration.TestRepo, Application.get_env(:bolt_sips, Bolt))
+
 defmodule Ecto.Integration.TestRepo do
   use Ecto.Repo, otp_app: :ecto, adapter: EctoNeo4j.Adapter
 
   def uuid() do
     Ecto.UUID
+  end
+end
+
+Application.put_env(:ecto, Ecto.Integration.PoolRepo, adapter: EctoNeo4j.Adapter)
+
+defmodule Ecto.Integration.PoolRepo do
+  use Ecto.Repo, otp_app: :ecto, adapter: EctoNeo4j.Adapter
+
+  def create_prefix(prefix) do
+    "create schema #{prefix}"
+  end
+
+  def drop_prefix(prefix) do
+    "drop schema #{prefix}"
   end
 end
 
@@ -75,7 +91,7 @@ end
 
 {:ok, _pid} = Ecto.Integration.TestRepo.start_link()
 
-# {:ok, _pid} = Ecto.Integration.PoolRepo.start_link()
+{:ok, _pid} = Ecto.Integration.PoolRepo.start_link()
 # {:ok, _pid} = TestRepo.start_link()
 
 # Ecto.Migrator.up(Ecto.Integration.TestRepo, 0, Ecto.Integration.Migration, log: false)
