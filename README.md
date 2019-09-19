@@ -16,17 +16,27 @@ Add `ecto` and `ecto_neo4j` to your dependencies:
 ```elixir
 def deps do
   [
-    {:ecto, "~> 3.1},
-    {:ecto_neo4j, "~> 0.2.0"}
+    {:ecto, "~> 3.2},
+    {:ecto_sql, "~> 3.2},
+    {:ecto_neo4j, "~> 0.3.0"}
   ]
 end
 ```
+`ecto_sql` is required if you planned to use the migration features.  
 
 # Configuration
 `ecto` configuration is quite the same:
 ```elixir
 # In your config/config.exs file
 config :my_app, ecto_repos: [Sample.Repo]
+
+# In your env-specific config, define database config (see bolt_sips for more information):
+config :sharon, Sharon.GraphRepo,
+  hostname: 'localhost',
+  basic_auth: [username: "user", password: "pass"],
+  port: 7687,
+  pool_size: 5,
+  max_overflow: 1
 
 # In your application code
 defmodule Sample.Repo do
@@ -36,24 +46,26 @@ defmodule Sample.Repo do
 end
 ```
 
-Now add your database config (see bolt_sips for more information):
-
-```elixir
-config :bolt_sips, Bolt,
-  hostname: 'localhost',
-  basic_auth: [username: "user", password: "pass"],
-  port: 7687,
-  pool_size: 5,
-  max_overflow: 1
-```
-
 And now, you're good to go!
 
 # Warning: about ids...
 As you may know, it is strongly recommended to NOT rely on Neo4j internal ids, as they can be reaffected.  
 With Ecto.Schema, `id` can be managed automatically. `EctoNeo4j` allows to not change this way of working by
 using a property called `nodeId` on created/updated nodes. This proprety is automically converted into `id` when 
-retrieving data from database.  
+retrieving data from database. 
+
+# About migrations
+WARNING: deletion and update can have a huge cost on database with lots of data. It is planned to make this operation 
+big-data-safe but for now, keep in mind that renaming 100_000 properties is not a good idea...  
+Migration are supported and available. As everything in SQL does not have its counterpart in the Neo4j world, 
+find below what is effectively supported and how:
+- `create table` has no sense, then is not supported
+- `drop table` will delete all nodes with the specified label
+- `primary_key` will create a `CONSTRAINT`
+- multiple property index is only supported in Neo4j Enterprise Edition
+- multiple property unique index (or primary_key) is not supported
+- If a table / column is rename, indexes and constraints are moved accordingly
+- If a table / column is dropped, indexes and constraints are dropped accordingly
 
 # Supported features
   - Compatible `Ecto.Repo` API.
@@ -70,7 +82,8 @@ retrieving data from database.
 [ ] Split test to allow bolt v1 testing  
 [ ] Support prefix? (is there any use case for this?)  
 [ ] Support optimistic locking?  
-[ ] Support migration (only: index creation, drop, rename, alter column name) - migration is supposed to support large amount of data (use batch :))  
+[x] Support migration (only: index creation, drop, rename, alter column name) - 
+[ ] Migration is supposed to support large amount of data (use batch...)  
 [ ] Support insert select?  
 [ ] Support delete with returning?  
 [ ] Support map update?  
