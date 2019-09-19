@@ -106,27 +106,14 @@ defmodule EctoNeo4j.Behaviour.Queryable do
       EctoNeo4j.Repo.query("MATCH (n:Post {uuid: {uuid}}", %{uuid: "unique_id"})
   """
   def query(cql, params \\ %{}, _opts \\ []) do
-    {:ok, res} =
-      Bolt.Sips.transaction(Bolt.Sips.conn(), fn conn ->
-        Bolt.Sips.query(conn, cql, params)
-      end)
-
-    res
+    Bolt.Sips.query(Bolt.Sips.conn(), cql, params)
   end
 
   @doc """
   Same as `query` but raises in case of error;
   """
   def query!(cql, params \\ %{}, _opts \\ []) do
-    result =
-      Bolt.Sips.transaction(Bolt.Sips.conn(), fn conn ->
-        Bolt.Sips.query!(conn, cql, params)
-      end)
-
-    case result do
-      {:ok, result} -> result
-      {:error, error} -> raise error
-    end
+    Bolt.Sips.query!(Bolt.Sips.conn(), cql, params)
   end
 
   @doc """
