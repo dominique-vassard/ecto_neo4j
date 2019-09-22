@@ -29,6 +29,7 @@ defmodule Ecto.Integration.TestRepo do
 end
 
 Application.put_env(:ecto, Ecto.Integration.PoolRepo, adapter: EctoNeo4j.Adapter)
+# Application.put_env(:ecto, Ecto.Integration.PoolRepo, Application.get_env(:bolt_sips, Bolt))
 
 defmodule Ecto.Integration.PoolRepo do
   use Ecto.Repo, otp_app: :ecto, adapter: EctoNeo4j.Adapter
@@ -49,7 +50,7 @@ end
 Code.require_file("../deps/ecto/integration_test/support/schemas.exs", __DIR__)
 Code.require_file("../deps/ecto/integration_test/support/types.exs", __DIR__)
 
-Application.put_env(:ecto, Ecto.Integration.PoolRepo, adapter: EctoNeo4j.Adapter)
+# Application.put_env(:ecto, Ecto.Integration.PoolRepo, adapter: EctoNeo4j.Adapter)
 
 # defmodule Ecto.Integration.PoolRepo do
 #   use Ecto.Integration.Repo, otp_app: :ecto

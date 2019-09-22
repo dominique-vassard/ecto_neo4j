@@ -13,7 +13,7 @@ defmodule EctoNeo4j.Adapter do
     {:ok, Bolt.Sips.child_spec(opts), %{}}
   end
 
-  def checkout(_, _, fun), do: fun.()
+  defdelegate checkout(adapter_meta, opts, fun), to: EctoNeo4j.Behaviour.Queryable
 
   def dumpers(:uuid, _type), do: [&Ecto.UUID.cast/1, :string]
   def dumpers(_primitive, type), do: [type]
@@ -61,4 +61,9 @@ defmodule EctoNeo4j.Adapter do
   defdelegate execute_ddl(repo, ddl, opts), to: EctoNeo4j.Storage.Migrator
   defdelegate lock_for_migrations(repo, query, opts, fun), to: EctoNeo4j.Storage.Migrator
   def supports_ddl_transaction?(), do: false
+
+  @behaviour Ecto.Adapter.Transaction
+  defdelegate transaction(adapter_meta, opts, fun_or_multi), to: EctoNeo4j.Behaviour.Queryable
+  defdelegate rollback(adapter_meta, opts), to: EctoNeo4j.Behaviour.Queryable
+  defdelegate in_transaction?(adapter_meta), to: EctoNeo4j.Behaviour.Queryable
 end

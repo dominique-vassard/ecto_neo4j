@@ -5,7 +5,7 @@ defmodule EctoNeo4j.MixProject do
     [
       name: "EctoNeo4j",
       app: :ecto_neo4j,
-      version: "0.3.0",
+      version: "0.4.0",
       elixir: "~> 1.8",
       package: package(),
       description: "Ecto adapter for Neo4j graph database",

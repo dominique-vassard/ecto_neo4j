@@ -18,7 +18,7 @@ def deps do
   [
     {:ecto, "~> 3.2},
     {:ecto_sql, "~> 3.2},
-    {:ecto_neo4j, "~> 0.3.0"}
+    {:ecto_neo4j, "~> 0.4.0"}
   ]
 end
 ```
@@ -73,21 +73,22 @@ find below what is effectively supported and how:
 
 # Unsupported features
   - `join`, `assoc`, `preload`
-  - migration
   - Upsert via `Repo.insert`, use `Repo.update` instead
   - `prefix`
   - Optimistic locking  
 
 # TODO
+[ ] Manage bolt role  
 [ ] Split test to allow bolt v1 testing  
 [ ] Support prefix? (is there any use case for this?)  
 [ ] Support optimistic locking?  
-[x] Support migration (only: index creation, drop, rename, alter column name) - 
+[x] Support migration (only: index creation, drop, rename, alter column name)  
 [ ] Migration is supposed to support large amount of data (use batch...)  
 [ ] Support insert select?  
 [ ] Support delete with returning?  
 [ ] Support map update?  
 [ ] Implement a merge?  
+[ ] Telemetry  
 
 # Can I contribute?  
 Yes, you can! Please, do!  

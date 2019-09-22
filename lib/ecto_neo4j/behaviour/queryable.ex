@@ -1,6 +1,10 @@
 defmodule EctoNeo4j.Behaviour.Queryable do
   alias EctoNeo4j.QueryBuilder
 
+  def checkout(_adapter_meta, _opts, _callback) do
+    raise "checkout/1 is not supported"
+  end
+
   def prepare(:all, query) do
     {:nocache, {:match, query}}
   end
@@ -14,7 +18,7 @@ defmodule EctoNeo4j.Behaviour.Queryable do
   end
 
   def execute(
-        _repo,
+        %{pid: pool},
         %{sources: {{_, _schema, _}}},
         {:nocache, {query_type, query}},
         sources,
@@ -23,7 +27,9 @@ defmodule EctoNeo4j.Behaviour.Queryable do
       ) do
     {cypher_query, params} = QueryBuilder.build(query_type, query, sources, opts)
 
-    case query(cypher_query, params) do
+    conn = EctoNeo4j.Behaviour.Queryable.get_conn(pool)
+
+    case Bolt.Sips.query(conn, cypher_query, params) do
       {:ok, results} ->
         res = Enum.map(results.results, &format_results(&1, query.select))
 
@@ -125,4 +131,68 @@ defmodule EctoNeo4j.Behaviour.Queryable do
       "stream/6 is not supported by adapter, use EctoMnesia.Table.Stream.new/2 instead"
     )
   end
+
+  def in_transaction?(%{pid: pool}) do
+    match?(%DBConnection{conn_mode: :transaction}, get_conn(pool))
+  end
+
+  # def transaction(repo, fun_or_multi, opts \\ [])
+
+  def transaction(_, %Ecto.Multi{}, _) do
+    raise "not supported"
+  end
+
+  def transaction(repo, opts, fun) do
+    checkout_or_transaction(:transaction, repo, opts, fun)
+  end
+
+  def rollback(%{pid: pool}, value) do
+    case get_conn(pool) do
+      %DBConnection{conn_mode: :transaction} = conn ->
+        Bolt.Sips.rollback(conn, value)
+
+      _ ->
+        raise "cannot call rollback outside of transaction"
+    end
+  end
+
+  ## Connection helpers
+
+  defp checkout_or_transaction(fun, %{pid: pool}, opts, callback) do
+    callback = fn conn ->
+      previous_conn = put_conn(pool, conn)
+
+      try do
+        callback.()
+      after
+        reset_conn(pool, previous_conn)
+      end
+    end
+
+    conn_role = Keyword.get(opts, :bolt_role, :direct)
+
+    apply(Bolt.Sips, fun, [get_conn_or_pool(pool, conn_role), callback, opts])
+  end
+
+  defp get_conn_or_pool(pool, role) do
+    Process.get(key(pool), Bolt.Sips.conn(role))
+  end
+
+  def get_conn(pool) do
+    Process.get(key(pool)) || Bolt.Sips.conn()
+  end
+
+  defp put_conn(pool, conn) do
+    Process.put(key(pool), conn)
+  end
+
+  defp reset_conn(pool, conn) do
+    if conn do
+      put_conn(pool, conn)
+    else
+      Process.delete(key(pool))
+    end
+  end
+
+  defp key(pool), do: {__MODULE__, pool}
 end

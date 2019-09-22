@@ -28,7 +28,7 @@ defmodule EctoNeo4j.Behaviour.Schema do
     end
   end
 
-  def insert(_adapter, %{source: source}, fields, _on_conflict, returning, _opts \\ []) do
+  def insert(adapter_meta, %{source: source}, fields, _on_conflict, returning, _opts \\ []) do
     returning_field =
       returning
       |> Enum.map(fn
@@ -36,22 +36,21 @@ defmodule EctoNeo4j.Behaviour.Schema do
         field -> field
       end)
 
-    NodeCql.insert(source, format_data(fields), returning_field)
-    |> execute()
+    execute(adapter_meta, NodeCql.insert(source, format_data(fields), returning_field))
   end
 
-  def update(_adapter_meta, %{source: source}, fields, filters, _returning, _options) do
-    NodeCql.update(source, format_data(fields), format_data(filters))
-    |> execute()
+  def update(adapter_meta, %{source: source}, fields, filters, _returning, _options) do
+    execute(adapter_meta, NodeCql.update(source, format_data(fields), format_data(filters)))
   end
 
-  def delete(_adapter_meta, %{source: source}, filters, _options) do
-    NodeCql.delete(source, format_data(filters))
-    |> execute()
+  def delete(adapter_meta, %{source: source}, filters, _options) do
+    execute(adapter_meta, NodeCql.delete(source, format_data(filters)))
   end
 
-  defp execute({cql, params}) do
-    case EctoNeo4j.Behaviour.Queryable.query(cql, params) do
+  defp execute(%{pid: pool}, {cql, params}) do
+    conn = EctoNeo4j.Behaviour.Queryable.get_conn(pool)
+
+    case Bolt.Sips.query(conn, cql, params) do
       {:ok, %Bolt.Sips.Response{results: [%{"n" => _record}]}} ->
         {:ok, []}
 
