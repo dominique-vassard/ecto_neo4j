@@ -36,7 +36,7 @@ defmodule EctoNeo4j.Behaviour.Queryable do
         {length(res), format_final_result(query_type, res)}
 
       {:error, error} ->
-        raise error
+        raise Bolt.Sips.Exception, error.message
     end
   end
 
@@ -120,6 +120,53 @@ defmodule EctoNeo4j.Behaviour.Queryable do
   """
   def query!(cql, params \\ %{}, _opts \\ []) do
     Bolt.Sips.query!(Bolt.Sips.conn(), cql, params)
+  end
+
+  def batch_query!(cql, params \\ %{}, batch_type \\ :basic, opts \\ []) do
+    case batch_query(cql, params, batch_type, opts) do
+      {:ok, []} -> {:ok, []}
+      {:error, error} -> raise Bolt.Sips.Exception, error.message
+    end
+  end
+
+  def batch_query(cql, params \\ %{}, batch_type \\ :basic, opts \\ [])
+
+  def batch_query(cql, cql_params, :basic, opts) do
+    chunk_size = Keyword.get(opts, :chunk_size, 10_000)
+    params = Map.merge(cql_params, %{limit: chunk_size})
+
+    do_batch_query(cql, params, 1)
+  end
+
+  def batch_query(cql, cql_params, :with_skip, opts) do
+    chunk_size = Keyword.get(opts, :chunk_size, 10_000)
+    params = Map.merge(cql_params, %{limit: chunk_size})
+
+    do_batch_query_with_skip(cql, params, 0, 1)
+  end
+
+  defp do_batch_query(_, _, 0) do
+    {:ok, []}
+  end
+
+  defp do_batch_query(cql, params, _) do
+    case query(cql, params) do
+      {:ok, %Bolt.Sips.Response{results: [%{"nb_touched_nodes" => nb_nodes}]}} ->
+        do_batch_query(cql, params, nb_nodes)
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp do_batch_query_with_skip(_, _, _, 0) do
+    {:ok, []}
+  end
+
+  defp do_batch_query_with_skip(cql, params, skip, _) do
+    params = Map.put(params, :skip, skip)
+    %Bolt.Sips.Response{results: [%{"nb_touched_nodes" => nb_nodes}]} = query!(cql, params)
+    do_batch_query_with_skip(cql, params, skip + params.limit, nb_nodes)
   end
 
   @doc """

@@ -52,9 +52,6 @@ defmodule EctoNeo4j.Adapter do
 
   defdelegate delete(adapter_meta, schema_meta, filters, options), to: EctoNeo4j.Behaviour.Schema
 
-  defdelegate query(cql, params \\ %{}, opts \\ []), to: EctoNeo4j.Behaviour.Queryable
-  defdelegate query!(cql, params \\ %{}, opts \\ []), to: EctoNeo4j.Behaviour.Queryable
-
   @behaviour Ecto.Adapter.Storage
   defdelegate storage_up(config), to: EctoNeo4j.Storage
   defdelegate storage_down(config), to: EctoNeo4j.Storage
@@ -66,4 +63,109 @@ defmodule EctoNeo4j.Adapter do
   defdelegate transaction(adapter_meta, opts, fun_or_multi), to: EctoNeo4j.Behaviour.Queryable
   defdelegate rollback(adapter_meta, opts), to: EctoNeo4j.Behaviour.Queryable
   defdelegate in_transaction?(adapter_meta), to: EctoNeo4j.Behaviour.Queryable
+
+  ######################
+  # ADDITIONAL HELPERS #
+  ######################
+  @doc """
+  Execute given query on the databsse.
+  This will return a `Bolt.Sips.Response`.
+
+  ## Example
+      iex> cql = "RETURN {num} AS n"
+      iex> params = %{num: 5}
+      iex> EctoNeo4j.Adapter.query(cql, params)
+      {:ok,
+        %Bolt.Sips.Response{
+          bookmark: nil,
+          fields: ["n"],
+          notifications: [],
+          plan: nil,
+          profile: nil,
+          records: [[5]],
+          results: [%{"n" => 5}],
+          stats: [],
+          type: "r"
+        }}
+  """
+  defdelegate query(cql, params \\ %{}, opts \\ []), to: EctoNeo4j.Behaviour.Queryable
+
+  @doc """
+  Same as query/3 but raises in case of error.
+  """
+  defdelegate query!(cql, params \\ %{}, opts \\ []), to: EctoNeo4j.Behaviour.Queryable
+
+  @doc """
+  Execute given query in batch.
+  There is two type of batches:
+    - `:basic` will use `LIMIT` to loop until every node is touched
+    - `:with_skip` will use `SKIP` and `LIMIT` until every node is touched
+
+  In order to work, the query must contains:
+    - for `:basic`, `LIMIT {limit}`
+    - for `:with_skip`, `SKIP {skip} LIMIT {limit}`
+    - in any case: `RETURN COUNT(my_nodes) AS nb_touched_nodes` with `my_nodes` being the nodes
+      you're working on
+
+  The `LIMIT` is set by default to 10_000, but you can set your aown value via the option
+  `:chunk_size`
+
+  ## Example
+
+      # :basic example
+      iex> cql = "
+      ...> MATCH
+      ...>     (n:Test)
+      ...> WITH
+      ...>   n AS n
+      ...> LIMIT
+      ...>   {limit}
+      ...> DETACH DELETE n
+      ...> RETURN
+      ...>   COUNT(n) AS nb_touched_nodes
+      ...> "
+      iex> EctoNeo4j.Adapter.batch_query(cql)
+      {:ok, []}
+      # :with_skip example
+      iex> cql = "
+      ...> MATCH
+      ...>     (n:Test)
+      ...> WITH
+      ...>   n AS n
+      ...> ORDER BY
+      ...>   n.nodeId
+      ...> SKIP
+      ...>   {skip}
+      ...> LIMIT
+      ...>   {limit}
+      ...> SET
+      ...>   n.value = {new_value}
+      ...> RETURN
+      ...>   COUNT(n) AS nb_touched_nodes
+      ...> "
+      iex> EctoNeo4j.Adapter.batch_query(cql, %{new_value: 5}, :with_skip)
+      {:ok, []}
+      # :basic example with `chunk_size` option specifiedd
+      iex> cql = "
+      ...> MATCH
+      ...>     (n:Test)
+      ...> WITH
+      ...>   n AS n
+      ...> LIMIT
+      ...>   {limit}
+      ...> DETACH DELETE n
+      ...> RETURN
+      ...>   COUNT(n) AS nb_touched_nodes
+      ...> "
+      iex> EctoNeo4j.Adapter.batch_query(cql, %{}, :basic, chunk_size: 20_000)
+      {:ok, []}
+  """
+  defdelegate batch_query(cql, params \\ %{}, batch_type \\ :basic, opts \\ []),
+    to: EctoNeo4j.Behaviour.Queryable
+
+  @doc """
+  Same as batch_query!/4 but raises in case of error.
+  """
+  defdelegate batch_query!(cql, params \\ %{}, batch_type \\ :basic, opts \\ []),
+    to: EctoNeo4j.Behaviour.Queryable
 end

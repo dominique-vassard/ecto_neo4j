@@ -89,6 +89,7 @@ find below what is effectively supported and how:
 [ ] Support map update?  
 [ ] Implement a merge?  
 [ ] Telemetry  
+[ ] insert_all performance
 
 # Can I contribute?  
 Yes, you can! Please, do!  

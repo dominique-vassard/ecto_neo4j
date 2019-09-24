@@ -21,7 +21,7 @@ defmodule EctoNeo4j.Storage.Migrator do
     case treat_operations(node_label, operations) do
       :ok -> {:ok, []}
       {:ok, _} -> {:ok, []}
-      {:error, error} -> raise error.message
+      {:error, error} -> raise Bolt.Sips.Exception, error.message
     end
   end
 
@@ -33,7 +33,7 @@ defmodule EctoNeo4j.Storage.Migrator do
   def execute_ddl(_, {operation, %Table{name: node_label}}, _) when operation in @drop_ops do
     node_label
     |> NodeCql.delete_nodes()
-    |> EctoNeo4j.Adapter.query!()
+    |> EctoNeo4j.Adapter.batch_query!()
 
     drop_all_constraints_and_indexes(node_label)
 
@@ -42,7 +42,7 @@ defmodule EctoNeo4j.Storage.Migrator do
 
   def execute_ddl(_, {:rename, %Table{name: old_name}, %Table{name: new_name}}, _) do
     NodeCql.relabel(old_name, new_name)
-    |> EctoNeo4j.Adapter.query!()
+    |> EctoNeo4j.Adapter.batch_query!()
 
     ci_list = [
       NodeCql.list_all_constraints(old_name),
@@ -65,7 +65,7 @@ defmodule EctoNeo4j.Storage.Migrator do
 
   def execute_ddl(_, {:rename, %Table{name: node_label}, old_name, new_name}, _) do
     NodeCql.rename_property(node_label, old_name, new_name)
-    |> EctoNeo4j.Adapter.query!()
+    |> EctoNeo4j.Adapter.batch_query!(%{}, :with_skip)
 
     # Move constraints and indexes to the new property
     ci_list = [
@@ -84,7 +84,7 @@ defmodule EctoNeo4j.Storage.Migrator do
   def execute_ddl(_, {:create, %Index{columns: cols, unique: true, table: node_label}}, _) do
     case create_constraint(node_label, cols) do
       {:ok, _} -> {:ok, []}
-      {:error, error} -> raise error.message
+      {:error, error} -> raise Bolt.Sips.Exception, error.message
     end
   end
 
@@ -100,7 +100,7 @@ defmodule EctoNeo4j.Storage.Migrator do
   def execute_ddl(_, {:drop, %Index{columns: cols, unique: true, table: node_label}}, _) do
     case drop_constraint(node_label, cols) do
       {:ok, _} -> {:ok, []}
-      {:error, error} -> raise error.message
+      {:error, error} -> raise Bolt.Sips.Exception, error.message
     end
   end
 
@@ -120,7 +120,7 @@ defmodule EctoNeo4j.Storage.Migrator do
   def execute_ddl(_, {:create, %Index{columns: cols, table: node_label}}, _) do
     case create_index(node_label, cols) do
       {:ok, _} -> {:ok, []}
-      {:error, error} -> raise error.message
+      {:error, error} -> raise Bolt.Sips.Exception, error.message
     end
   end
 
@@ -132,7 +132,7 @@ defmodule EctoNeo4j.Storage.Migrator do
   def execute_ddl(_, {:drop, %Index{columns: cols, table: node_label}}, _) do
     case drop_index(node_label, cols) do
       {:ok, _} -> {:ok, []}
-      {:error, error} -> raise error.message
+      {:error, error} -> raise Bolt.Sips.Exception, error.message
     end
   end
 
@@ -145,6 +145,9 @@ defmodule EctoNeo4j.Storage.Migrator do
     {:ok, []}
   end
 
+  ########################
+  # PRIVATES AND HElPERS #
+  ########################
   defp treat_operations(node_label, operations) do
     case do_treat_operations(node_label, operations) do
       data when map_size(data) == 0 ->

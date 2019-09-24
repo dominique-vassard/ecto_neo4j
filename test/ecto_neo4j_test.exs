@@ -1,8 +1,6 @@
 defmodule EctoNeo4jTest do
   use ExUnit.Case
-  doctest EctoNeo4j
+  @moduletag :supported
 
-  test "greets the world" do
-    assert EctoNeo4j.hello() == :world
-  end
+  doctest EctoNeo4j.Adapter
 end

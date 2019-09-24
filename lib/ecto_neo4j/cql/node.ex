@@ -182,7 +182,7 @@ defmodule EctoNeo4j.Cql.Node do
   end
 
   @doc """
-  Returns cypher query to delete all databse data.
+  Returns cypher query to delete all database data.
 
   ## Example
 
@@ -203,13 +203,38 @@ defmodule EctoNeo4j.Cql.Node do
     """
   end
 
+  @doc """
+  Returns cypher query to delete all given nodes.
+  This operation shoudl be performed as a btach for performance reason.
+
+  ## Example
+
+      iex> EctoNeo4j.Cql.Node.delete_nodes("Post")
+      "MATCH
+        (n:Post)
+      WITH
+        n AS n
+      LIMIT
+        {limit}
+      DETACH DELETE
+        n
+      RETURN
+        COUNT(n) AS nb_touched_nodes
+      "
+  """
   @spec delete_nodes(String.t()) :: String.t()
   def delete_nodes(node_label) do
     """
     MATCH
       (n:#{node_label})
+    WITH
+      n AS n
+    LIMIT
+      {limit}
     DETACH DELETE
       n
+    RETURN
+      COUNT(n) AS nb_touched_nodes
     """
   end
 
@@ -580,10 +605,18 @@ defmodule EctoNeo4j.Cql.Node do
       iex> EctoNeo4j.Cql.Node.rename_property("Post", "titttle", "title")
       "MATCH
         (n:Post)
+      WITH
+        n AS n
+      SKIP
+        {skip}
+      LIMIT
+        {limit}
       SET
         n.title = n.titttle
       REMOVE
         n.titttle
+      RETURN
+        COUNT(n) AS nb_touched_nodes
       "
   """
   @spec rename_property(String.t(), String.t(), String.t()) :: String.t()
@@ -591,10 +624,18 @@ defmodule EctoNeo4j.Cql.Node do
     """
     MATCH
       (n:#{node_label})
+    WITH
+      n AS n
+    SKIP
+      {skip}
+    LIMIT
+      {limit}
     SET
       n.#{new_name} = n.#{old_name}
     REMOVE
       n.#{old_name}
+    RETURN
+      COUNT(n) AS nb_touched_nodes
     """
   end
 
@@ -606,10 +647,16 @@ defmodule EctoNeo4j.Cql.Node do
       iex> EctoNeo4j.Cql.Node.relabel("Post", "NewPost")
       "MATCH
         (n:Post)
+      WITH
+        n AS n
+      LIMIT
+        {limit}
       SET
         n:NewPost
       REMOVE
         n:Post
+      RETURN
+        COUNT(n) AS nb_touched_nodes
       "
   """
   @spec relabel(String.t(), String.t()) :: String.t()
@@ -617,10 +664,16 @@ defmodule EctoNeo4j.Cql.Node do
     """
     MATCH
       (n:#{old_label})
+    WITH
+      n AS n
+    LIMIT
+      {limit}
     SET
       n:#{new_label}
     REMOVE
       n:#{old_label}
+    RETURN
+      COUNT(n) AS nb_touched_nodes
     """
   end
 end
