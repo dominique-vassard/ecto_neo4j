@@ -8,7 +8,7 @@ defmodule EctoNeo4j.QueryBuilder do
   @valid_operators [:==, :in, :>, :>=, :<, :<, :min, :max, :count, :sum, :avg]
   def build(query_type, queryable_or_schema, sources, opts \\ [])
 
-  def build(query_type, %Ecto.Query{} = query, sources, _opts) do
+  def build(query_type, %Ecto.Query{} = query, sources, opts) do
     {source, _schema} = query.from.source
     wheres = query.wheres
 
@@ -33,7 +33,8 @@ defmodule EctoNeo4j.QueryBuilder do
         cql_return,
         cql_order_by,
         cql_limit,
-        cql_skip
+        cql_skip,
+        Keyword.get(opts, :batch, false)
       )
 
     params = Map.merge(update_params, where_params)

@@ -246,7 +246,7 @@ defmodule EctoNeo4j.Cql.Node do
       # with default `where` and `return`
       iex> EctoNeo4j.Cql.Node.build_query(:match, "Post")
       "MATCH
-        (n:Post)\\n\\n\\n
+        (n:Post)\\n\\n\\n\\n
       RETURN
         n\\n\\n\\n
       "
@@ -259,7 +259,7 @@ defmodule EctoNeo4j.Cql.Node do
       "MATCH
         (n:Post)
       WHERE
-      title = {title}\\n\\n\\n
+      title = {title}\\n\\n\\n\\n
       RETURN
         n\\n\\n\\n
       "
@@ -267,7 +267,7 @@ defmodule EctoNeo4j.Cql.Node do
       # for deleting
       iex> EctoNeo4j.Cql.Node.build_query(:delete, "Post")
       "MATCH
-        (n:Post)\\n\\n
+        (n:Post)\\n\\n\\n
       DETACH DELETE
         n\\n
       RETURN
@@ -293,7 +293,8 @@ defmodule EctoNeo4j.Cql.Node do
         return \\ "n",
         order_by \\ "",
         limit \\ nil,
-        skip \\ nil
+        skip \\ nil,
+        is_batch? \\ false
       ) do
     cql_where =
       if String.length(where) > 0 do
@@ -341,10 +342,14 @@ defmodule EctoNeo4j.Cql.Node do
         """
       end
 
+    {return, cql_skip, cql_limit, cql_order_by, cql_batch} =
+      batch_cql(is_batch?, query_type, return, cql_skip, cql_limit, cql_order_by)
+
     """
     MATCH
       (n:#{node_label})
     #{cql_where}
+    #{cql_batch}
     #{cql_update}
     #{cql_delete}
     RETURN
@@ -353,6 +358,32 @@ defmodule EctoNeo4j.Cql.Node do
     #{cql_skip}
     #{cql_limit}
     """
+  end
+
+  defp batch_cql(false, _, return, skip, limit, order_by) do
+    {return, skip, limit, order_by, ""}
+  end
+
+  defp batch_cql(true, query_type, _, _, _, _) do
+    return = "COUNT(n) AS nb_touched_nodes"
+    skip = ""
+    limit = ""
+    order_by = ""
+
+    cql_batch_skip =
+      if query_type == :update do
+        "SKIP {skip}"
+      end
+
+    batch = """
+    WITH
+    n AS n
+    #{cql_batch_skip}
+    LIMIT
+    {limit}
+    """
+
+    {return, skip, limit, order_by, batch}
   end
 
   @doc """

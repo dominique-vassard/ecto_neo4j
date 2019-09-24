@@ -1,5 +1,9 @@
 defmodule EctoNeo4j.BatchTest do
   use ExUnit.Case, async: false
+  @moduletag :supported
+
+  alias Ecto.Integration.TestRepo
+  alias Ecto.Integration.Post
 
   setup do
     Bolt.Sips.query!(Bolt.Sips.conn(), "MATCH (n) DETACH DELETE n")
@@ -116,5 +120,42 @@ defmodule EctoNeo4j.BatchTest do
     assert_raise Bolt.Sips.Exception, fn ->
       EctoNeo4j.Behaviour.Queryable.batch_query!(cql)
     end
+  end
+
+  test "insert, update and delete" do
+    # posts =
+    #   TestRepo.all(Post)
+    #   |> IO.inspect()
+
+    TestRepo.update_all(Post, [set: [title: "New title"]], batch: true)
+
+    cql = """
+    MATCH
+      (n:posts)
+    WHERE
+      n.title = "New title"
+    RETURN COUNT(n) AS nb_updated
+    """
+
+    assert %Bolt.Sips.Response{results: [%{"nb_updated" => 500}]} = EctoNeo4j.Adapter.query!(cql)
+
+    TestRepo.delete_all(Post, batch: true)
+    assert %Bolt.Sips.Response{results: [%{"nb_updated" => 0}]} = EctoNeo4j.Adapter.query!(cql)
+
+    # post = %Post{title: "insert, update, delete", text: "fetch empty"}
+    # meta = post.__meta__
+
+    # assert %Post{} = inserted = TestRepo.insert!(post)
+    # assert %Post{} = updated = TestRepo.update!(Ecto.Changeset.change(inserted, text: "new"))
+
+    # deleted_meta = put_in(meta.state, :deleted)
+    # assert %Post{__meta__: ^deleted_meta} = TestRepo.delete!(updated)
+
+    # loaded_meta = put_in(meta.state, :loaded)
+    # assert %Post{__meta__: ^loaded_meta} = TestRepo.insert!(post)
+
+    # post = TestRepo.one(Post)
+    # assert post.__meta__.state == :loaded
+    # assert post.inserted_at
   end
 end

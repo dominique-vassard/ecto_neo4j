@@ -83,7 +83,7 @@ find below what is effectively supported and how:
 [ ] Support prefix? (is there any use case for this?)  
 [ ] Support optimistic locking?  
 [x] Support migration (only: index creation, drop, rename, alter column name)  
-[ ] Migration is supposed to support large amount of data (use batch...)  
+[x] Migration is supposed to support large amount of data (use batch...)  
 [ ] Support insert select?  
 [ ] Support delete with returning?  
 [ ] Support map update?  

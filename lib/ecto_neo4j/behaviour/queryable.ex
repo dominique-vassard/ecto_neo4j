@@ -1,6 +1,9 @@
 defmodule EctoNeo4j.Behaviour.Queryable do
   alias EctoNeo4j.QueryBuilder
 
+  @chunk_size Application.get_env(:ecto_neo4j, EctoNeo4j, chunk_size: 10_000)
+              |> Keyword.get(:chunk_size)
+
   def checkout(_adapter_meta, _opts, _callback) do
     raise "checkout/1 is not supported"
   end
@@ -22,13 +25,40 @@ defmodule EctoNeo4j.Behaviour.Queryable do
         %{sources: {{_, _schema, _}}},
         {:nocache, {query_type, query}},
         sources,
-        _preprocess,
+        preprocess,
         opts \\ []
       ) do
+    is_batch? = Keyword.get(preprocess, :batch, false)
+
+    opts =
+      opts ++ [batch: is_batch?, chunk_size: Keyword.get(preprocess, :chunk_size, @chunk_size)]
+
     {cypher_query, params} = QueryBuilder.build(query_type, query, sources, opts)
 
-    conn = EctoNeo4j.Behaviour.Queryable.get_conn(pool)
+    conn = get_conn(pool)
 
+    run_query(conn, query, cypher_query, params, is_batch?, query_type, opts)
+  end
+
+  defp run_query(_, _, query, params, true, query_type, opts)
+       when query_type in [:update, :delete] do
+    batch_type =
+      if query_type == :update do
+        :with_skip
+      else
+        :basic
+      end
+
+    case batch_query(query, params, batch_type, opts) do
+      {:ok, []} ->
+        nil
+
+      {:error, error} ->
+        raise Bolt.Sips.Exception, error.message
+    end
+  end
+
+  defp run_query(conn, query, cypher_query, params, _is_batch?, query_type, _opts) do
     case Bolt.Sips.query(conn, cypher_query, params) do
       {:ok, results} ->
         res = Enum.map(results.results, &format_results(&1, query.select))
@@ -132,14 +162,15 @@ defmodule EctoNeo4j.Behaviour.Queryable do
   def batch_query(cql, params \\ %{}, batch_type \\ :basic, opts \\ [])
 
   def batch_query(cql, cql_params, :basic, opts) do
-    chunk_size = Keyword.get(opts, :chunk_size, 10_000)
+    chunk_size = Keyword.get(opts, :chunk_size, @chunk_size)
+
     params = Map.merge(cql_params, %{limit: chunk_size})
 
     do_batch_query(cql, params, 1)
   end
 
   def batch_query(cql, cql_params, :with_skip, opts) do
-    chunk_size = Keyword.get(opts, :chunk_size, 10_000)
+    chunk_size = Keyword.get(opts, :chunk_size, @chunk_size)
     params = Map.merge(cql_params, %{limit: chunk_size})
 
     do_batch_query_with_skip(cql, params, 0, 1)

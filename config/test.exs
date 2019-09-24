@@ -6,3 +6,5 @@ config :bolt_sips, Bolt,
   port: 7687,
   pool_size: 5,
   max_overflow: 1
+
+config :ecto_neo4j, EctoNeo4j, chunk_size: 200
