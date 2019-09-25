@@ -28,10 +28,10 @@ end
 `ecto` configuration is quite the same:
 ```elixir
 # In your config/config.exs file
-config :my_app, ecto_repos: [Sample.Repo]
+config :my_app, ecto_repos: [MyApp.Repo]
 
 # In your env-specific config, define database config (see bolt_sips for more information):
-config :sharon, Sharon.GraphRepo,
+config :my_app, MyApp.Repo,
   hostname: 'localhost',
   basic_auth: [username: "user", password: "pass"],
   port: 7687,
@@ -39,7 +39,7 @@ config :sharon, Sharon.GraphRepo,
   max_overflow: 1
 
 # In your application code
-defmodule Sample.Repo do
+defmodule MyApp.Repo do
   use Ecto.Repo,
     otp_app: :my_app,
     adapter: EctoNeo4j.Adapter

@@ -74,19 +74,20 @@ defmodule EctoNeo4j.Adapter do
   ## Example
       iex> cql = "RETURN {num} AS n"
       iex> params = %{num: 5}
-      iex> EctoNeo4j.Adapter.query(cql, params)
-      {:ok,
-        %Bolt.Sips.Response{
-          bookmark: nil,
-          fields: ["n"],
-          notifications: [],
-          plan: nil,
-          profile: nil,
-          records: [[5]],
-          results: [%{"n" => 5}],
-          stats: [],
-          type: "r"
-        }}
+      ...> {:ok,
+      ...>   %Bolt.Sips.Response{
+      ...>     bookmark: _,
+      ...>     fields: ["n"],
+      ...>     notifications: [],
+      ...>     plan: nil,
+      ...>     profile: nil,
+      ...>     records: [[5]],
+      ...>     results: [%{"n" => 5}],
+      ...>     stats: [],
+      ...>     type: "r"
+      ...>   }} = EctoNeo4j.Adapter.query(cql, params)
+      iex> :ok
+      :ok
   """
   defdelegate query(cql, params \\ %{}, opts \\ []), to: EctoNeo4j.Behaviour.Queryable
 
