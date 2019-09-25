@@ -1,4 +1,4 @@
-defmodule EctoNeo4j.Storage.MigratorTest do
+defmodule Ecto.Adapters.Neo4j.Storage.MigratorTest do
   use ExUnit.Case, async: true
 
   defmodule MigrationTest.Create do

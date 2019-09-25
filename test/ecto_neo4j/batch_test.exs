@@ -1,4 +1,4 @@
-defmodule EctoNeo4j.BatchTest do
+defmodule Ecto.Adapters.Neo4j.BatchTest do
   use ExUnit.Case, async: false
   @moduletag :supported
 
@@ -18,7 +18,7 @@ defmodule EctoNeo4j.BatchTest do
 
     # TestRepo.insert_all(Post, data)
 
-    EctoNeo4j.Adapter.query!(data)
+    Ecto.Adapters.Neo4j.query!(data)
     :ok
   end
 
@@ -38,7 +38,7 @@ defmodule EctoNeo4j.BatchTest do
       COUNT(n) AS nb_touched_nodes
     """
 
-    assert {:ok, []} = EctoNeo4j.Behaviour.Queryable.batch_query(cql)
+    assert {:ok, []} = Ecto.Adapters.Neo4j.Behaviour.Queryable.batch_query(cql)
 
     cql = """
     MATCH
@@ -48,7 +48,8 @@ defmodule EctoNeo4j.BatchTest do
     RETURN COUNT(n) AS nb_updated
     """
 
-    assert %Bolt.Sips.Response{results: [%{"nb_updated" => 500}]} = EctoNeo4j.Adapter.query!(cql)
+    assert %Bolt.Sips.Response{results: [%{"nb_updated" => 500}]} =
+             Ecto.Adapters.Neo4j.query!(cql)
   end
 
   test "batch update with skip" do
@@ -68,7 +69,7 @@ defmodule EctoNeo4j.BatchTest do
       COUNT(n) AS nb_touched_nodes
     """
 
-    assert {:ok, []} = EctoNeo4j.Behaviour.Queryable.batch_query(cql, %{}, :with_skip)
+    assert {:ok, []} = Ecto.Adapters.Neo4j.Behaviour.Queryable.batch_query(cql, %{}, :with_skip)
 
     cql = """
     MATCH
@@ -78,7 +79,8 @@ defmodule EctoNeo4j.BatchTest do
     RETURN COUNT(n) AS nb_updated
     """
 
-    assert %Bolt.Sips.Response{results: [%{"nb_updated" => 500}]} = EctoNeo4j.Adapter.query!(cql)
+    assert %Bolt.Sips.Response{results: [%{"nb_updated" => 500}]} =
+             Ecto.Adapters.Neo4j.query!(cql)
   end
 
   test "batch update with skip with specific chunksize" do
@@ -99,7 +101,9 @@ defmodule EctoNeo4j.BatchTest do
     """
 
     assert {:ok, []} =
-             EctoNeo4j.Behaviour.Queryable.batch_query(cql, %{}, :with_skip, chunk_size: 100)
+             Ecto.Adapters.Neo4j.Behaviour.Queryable.batch_query(cql, %{}, :with_skip,
+               chunk_size: 100
+             )
 
     cql = """
     MATCH
@@ -109,7 +113,8 @@ defmodule EctoNeo4j.BatchTest do
     RETURN COUNT(n) AS nb_updated
     """
 
-    assert %Bolt.Sips.Response{results: [%{"nb_updated" => 500}]} = EctoNeo4j.Adapter.query!(cql)
+    assert %Bolt.Sips.Response{results: [%{"nb_updated" => 500}]} =
+             Ecto.Adapters.Neo4j.query!(cql)
   end
 
   test "query! raises" do
@@ -118,7 +123,7 @@ defmodule EctoNeo4j.BatchTest do
     """
 
     assert_raise Bolt.Sips.Exception, fn ->
-      EctoNeo4j.Behaviour.Queryable.batch_query!(cql)
+      Ecto.Adapters.Neo4j.Behaviour.Queryable.batch_query!(cql)
     end
   end
 
@@ -137,10 +142,11 @@ defmodule EctoNeo4j.BatchTest do
     RETURN COUNT(n) AS nb_updated
     """
 
-    assert %Bolt.Sips.Response{results: [%{"nb_updated" => 500}]} = EctoNeo4j.Adapter.query!(cql)
+    assert %Bolt.Sips.Response{results: [%{"nb_updated" => 500}]} =
+             Ecto.Adapters.Neo4j.query!(cql)
 
     TestRepo.delete_all(Post, batch: true)
-    assert %Bolt.Sips.Response{results: [%{"nb_updated" => 0}]} = EctoNeo4j.Adapter.query!(cql)
+    assert %Bolt.Sips.Response{results: [%{"nb_updated" => 0}]} = Ecto.Adapters.Neo4j.query!(cql)
 
     # post = %Post{title: "insert, update, delete", text: "fetch empty"}
     # meta = post.__meta__

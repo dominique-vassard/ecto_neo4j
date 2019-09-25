@@ -16,23 +16,23 @@ ExUnit.start(
 # Configure Ecto for support and tests
 Application.put_env(:ecto, :primary_key_type, :id)
 
-Application.put_env(:ecto, Ecto.Integration.TestRepo, adapter: EctoNeo4j.Adapter)
+Application.put_env(:ecto, Ecto.Integration.TestRepo, adapter: Ecto.Adapters.Neo4j)
 
 Application.put_env(:ecto, Ecto.Integration.TestRepo, Application.get_env(:bolt_sips, Bolt))
 
 defmodule Ecto.Integration.TestRepo do
-  use Ecto.Repo, otp_app: :ecto, adapter: EctoNeo4j.Adapter
+  use Ecto.Repo, otp_app: :ecto, adapter: Ecto.Adapters.Neo4j
 
   def uuid() do
     Ecto.UUID
   end
 end
 
-Application.put_env(:ecto, Ecto.Integration.PoolRepo, adapter: EctoNeo4j.Adapter)
+Application.put_env(:ecto, Ecto.Integration.PoolRepo, adapter: Ecto.Adapters.Neo4j)
 # Application.put_env(:ecto, Ecto.Integration.PoolRepo, Application.get_env(:bolt_sips, Bolt))
 
 defmodule Ecto.Integration.PoolRepo do
-  use Ecto.Repo, otp_app: :ecto, adapter: EctoNeo4j.Adapter
+  use Ecto.Repo, otp_app: :ecto, adapter: Ecto.Adapters.Neo4j
 
   def create_prefix(prefix) do
     "create schema #{prefix}"
@@ -50,7 +50,7 @@ end
 Code.require_file("../deps/ecto/integration_test/support/schemas.exs", __DIR__)
 Code.require_file("../deps/ecto/integration_test/support/types.exs", __DIR__)
 
-# Application.put_env(:ecto, Ecto.Integration.PoolRepo, adapter: EctoNeo4j.Adapter)
+# Application.put_env(:ecto, Ecto.Integration.PoolRepo, adapter: Ecto.Adapters.Neo4j)
 
 # defmodule Ecto.Integration.PoolRepo do
 #   use Ecto.Integration.Repo, otp_app: :ecto
@@ -83,7 +83,7 @@ defmodule Ecto.Integration.Case do
   end
 end
 
-{:ok, _} = EctoNeo4j.Adapter.ensure_all_started(Ecto.Integration.TestRepo, :temporary)
+{:ok, _} = Ecto.Adapters.Neo4j.ensure_all_started(Ecto.Integration.TestRepo, :temporary)
 
 # Load up the repository, start it, and run migrations
 # _ = EctoMnesia.Adapter.storage_down(Ecto.Integration.TestRepo.config())

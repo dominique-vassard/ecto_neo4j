@@ -42,7 +42,7 @@ config :my_app, MyApp.Repo,
 defmodule MyApp.Repo do
   use Ecto.Repo,
     otp_app: :my_app,
-    adapter: EctoNeo4j.Adapter
+    adapter: Ecto.Adapters.Neo4j
 end
 ```
 

@@ -1,7 +1,7 @@
-defmodule EctoNeo4j.HelperTest do
+defmodule Ecto.Adapters.Neo4j.HelperTest do
   use ExUnit.Case, async: true
 
   @moduletag :supported
 
-  doctest EctoNeo4j.Helper
+  doctest Ecto.Adapters.Neo4j.Helper
 end

@@ -1,7 +1,7 @@
-defmodule EctoNeo4j.Behaviour.Queryable do
-  alias EctoNeo4j.QueryBuilder
+defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
+  alias Ecto.Adapters.Neo4j.QueryBuilder
 
-  @chunk_size Application.get_env(:ecto_neo4j, EctoNeo4j, chunk_size: 10_000)
+  @chunk_size Application.get_env(:ecto_neo4j, Ecto.Adapters.Neo4j, chunk_size: 10_000)
               |> Keyword.get(:chunk_size)
 
   def checkout(_adapter_meta, _opts, _callback) do
@@ -139,7 +139,7 @@ defmodule EctoNeo4j.Behaviour.Queryable do
   As database errors should not be silently ignored, a wrong query will crash.
 
   ### Example
-      EctoNeo4j.Repo.query("MATCH (n:Post {uuid: {uuid}}", %{uuid: "unique_id"})
+      Ecto.Adapters.Neo4j.Repo.query("MATCH (n:Post {uuid: {uuid}}", %{uuid: "unique_id"})
   """
   def query(cql, params \\ %{}, _opts \\ []) do
     Bolt.Sips.query(Bolt.Sips.conn(), cql, params)

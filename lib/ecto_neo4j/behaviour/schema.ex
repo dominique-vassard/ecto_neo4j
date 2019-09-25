@@ -1,7 +1,7 @@
-defmodule EctoNeo4j.Behaviour.Schema do
+defmodule Ecto.Adapters.Neo4j.Behaviour.Schema do
   @moduledoc false
 
-  alias EctoNeo4j.Cql.Node, as: NodeCql
+  alias Ecto.Adapters.Neo4j.Cql.Node, as: NodeCql
 
   def autogenerate(:id), do: :erlang.system_time(:microsecond)
   def autogenerate(:binary_id), do: Ecto.UUID.generate()
@@ -48,7 +48,7 @@ defmodule EctoNeo4j.Behaviour.Schema do
   end
 
   defp execute(%{pid: pool}, {cql, params}) do
-    conn = EctoNeo4j.Behaviour.Queryable.get_conn(pool)
+    conn = Ecto.Adapters.Neo4j.Behaviour.Queryable.get_conn(pool)
 
     case Bolt.Sips.query(conn, cql, params) do
       {:ok, %Bolt.Sips.Response{results: [%{"n" => _record}]}} ->
@@ -65,6 +65,6 @@ defmodule EctoNeo4j.Behaviour.Schema do
   defp format_data(data) do
     data
     |> Map.new()
-    |> EctoNeo4j.Helper.manage_id(:to_db)
+    |> Ecto.Adapters.Neo4j.Helper.manage_id(:to_db)
   end
 end

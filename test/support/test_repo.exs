@@ -1,4 +1,4 @@
-Application.put_env(:ecto_mnesia, TestRepo, adapter: EctoNeo4j.Adapter)
+Application.put_env(:ecto_mnesia, TestRepo, adapter: Ecto.Adapters.Neo4j)
 
 defmodule SellOffer do
   use Ecto.Schema
@@ -90,5 +90,5 @@ end
 # end
 
 defmodule TestRepo do
-  use Ecto.Repo, otp_app: :ecto_neo4j, adapter: EctoNeo4j.Adapter
+  use Ecto.Repo, otp_app: :ecto_neo4j, adapter: Ecto.Adapters.Neo4j
 end

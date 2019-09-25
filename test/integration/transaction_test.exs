@@ -108,7 +108,7 @@ defmodule Ecto.Integration.TransactionTest do
   test "transaction rolls back with reason on aborted transaction" do
     e1 = PoolRepo.insert!(%Trans{num: 13})
 
-    # EctoNeo4j.Adapter.query!("CREATE CONSTRAINT ON (n:transactions) ASSERT n.nodeId IS UNIQUE")
+    # Ecto.Adapters.Neo4j.query!("CREATE CONSTRAINT ON (n:transactions) ASSERT n.nodeId IS UNIQUE")
 
     assert_raise Ecto.ConstraintError, fn ->
       TestRepo.transaction(fn ->

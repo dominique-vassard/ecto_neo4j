@@ -1,5 +1,5 @@
-defmodule EctoNeo4j.Storage.Migrator do
-  alias EctoNeo4j.Cql.Node, as: NodeCql
+defmodule Ecto.Adapters.Neo4j.Storage.Migrator do
+  alias Ecto.Adapters.Neo4j.Cql.Node, as: NodeCql
   alias Ecto.Migration.{Index, Table}
 
   @drop_ops [:drop, :drop_if_exists]
@@ -9,7 +9,7 @@ defmodule EctoNeo4j.Storage.Migrator do
   ################
 
   def execute_ddl(_, cql, _) when is_binary(cql) do
-    EctoNeo4j.Adapter.query!(cql)
+    Ecto.Adapters.Neo4j.query!(cql)
     {:ok, []}
   end
 
@@ -33,7 +33,7 @@ defmodule EctoNeo4j.Storage.Migrator do
   def execute_ddl(_, {operation, %Table{name: node_label}}, _) when operation in @drop_ops do
     node_label
     |> NodeCql.delete_nodes()
-    |> EctoNeo4j.Adapter.batch_query!()
+    |> Ecto.Adapters.Neo4j.batch_query!()
 
     drop_all_constraints_and_indexes(node_label)
 
@@ -42,7 +42,7 @@ defmodule EctoNeo4j.Storage.Migrator do
 
   def execute_ddl(_, {:rename, %Table{name: old_name}, %Table{name: new_name}}, _) do
     NodeCql.relabel(old_name, new_name)
-    |> EctoNeo4j.Adapter.batch_query!()
+    |> Ecto.Adapters.Neo4j.batch_query!()
 
     ci_list = [
       NodeCql.list_all_constraints(old_name),
@@ -65,7 +65,7 @@ defmodule EctoNeo4j.Storage.Migrator do
 
   def execute_ddl(_, {:rename, %Table{name: node_label}, old_name, new_name}, _) do
     NodeCql.rename_property(node_label, old_name, new_name)
-    |> EctoNeo4j.Adapter.batch_query!(%{}, :with_skip)
+    |> Ecto.Adapters.Neo4j.batch_query!(%{}, :with_skip)
 
     # Move constraints and indexes to the new property
     ci_list = [
@@ -156,7 +156,7 @@ defmodule EctoNeo4j.Storage.Migrator do
       data ->
         {cql, params} = NodeCql.update(node_label, data)
 
-        EctoNeo4j.Adapter.query(cql, params)
+        Ecto.Adapters.Neo4j.query(cql, params)
     end
   end
 
@@ -178,7 +178,7 @@ defmodule EctoNeo4j.Storage.Migrator do
   defp do_treat_operations(node_label, [{op, col, _, [{:null, true} | _]} | operations], data)
        when op in @add_ops do
     NodeCql.drop_non_null_constraint(node_label, col)
-    |> EctoNeo4j.Adapter.query()
+    |> Ecto.Adapters.Neo4j.query()
 
     do_treat_operations(node_label, operations, data)
   end
@@ -186,7 +186,7 @@ defmodule EctoNeo4j.Storage.Migrator do
   defp do_treat_operations(node_label, [{op, col, _, [{:null, false} | _]} | operations], data)
        when op in @add_ops do
     NodeCql.create_non_null_constraint(node_label, col)
-    |> EctoNeo4j.Adapter.query()
+    |> Ecto.Adapters.Neo4j.query()
 
     do_treat_operations(node_label, operations, data)
   end
@@ -198,7 +198,7 @@ defmodule EctoNeo4j.Storage.Migrator do
        )
        when op in @add_ops do
     NodeCql.create_constraint(node_label, [col])
-    |> EctoNeo4j.Adapter.query()
+    |> Ecto.Adapters.Neo4j.query()
 
     do_treat_operations(node_label, operations, data)
   end
@@ -210,7 +210,7 @@ defmodule EctoNeo4j.Storage.Migrator do
        )
        when op in @add_ops do
     NodeCql.drop_constraint(node_label, [col])
-    |> EctoNeo4j.Adapter.query()
+    |> Ecto.Adapters.Neo4j.query()
 
     do_treat_operations(node_label, operations, data)
   end
@@ -222,40 +222,40 @@ defmodule EctoNeo4j.Storage.Migrator do
 
   defp create_constraint(node_label, cols) do
     NodeCql.create_constraint(node_label, cols)
-    |> EctoNeo4j.Adapter.query()
+    |> Ecto.Adapters.Neo4j.query()
   end
 
   defp drop_constraint(node_label, cols) do
     NodeCql.drop_constraint(node_label, cols)
-    |> EctoNeo4j.Adapter.query()
+    |> Ecto.Adapters.Neo4j.query()
   end
 
   defp create_index(node_label, cols) do
     NodeCql.create_index(node_label, cols)
-    |> EctoNeo4j.Adapter.query()
+    |> Ecto.Adapters.Neo4j.query()
   end
 
   defp drop_index(node_label, cols) do
     NodeCql.drop_index(node_label, cols)
-    |> EctoNeo4j.Adapter.query()
+    |> Ecto.Adapters.Neo4j.query()
   end
 
   defp drop_all_constraints_and_indexes(node_label, col \\ nil) do
     [NodeCql.list_all_constraints(node_label, col), NodeCql.list_all_indexes(node_label, col)]
     |> Enum.map(fn cql ->
-      EctoNeo4j.Adapter.query!(cql)
+      Ecto.Adapters.Neo4j.query!(cql)
       |> Map.get(:records, [])
     end)
     |> List.flatten()
     |> Enum.map(&NodeCql.drop_constraint_index_from_cql/1)
-    |> Enum.map(&EctoNeo4j.Adapter.query/1)
+    |> Enum.map(&Ecto.Adapters.Neo4j.query/1)
   end
 
   defp move_constraints_indexes(cstr_idx_list, from, to) do
     ci_list =
       cstr_idx_list
       |> Enum.map(fn cql ->
-        EctoNeo4j.Adapter.query!(cql)
+        Ecto.Adapters.Neo4j.query!(cql)
         |> Map.get(:records, [])
       end)
       |> List.flatten()
@@ -265,12 +265,12 @@ defmodule EctoNeo4j.Storage.Migrator do
       cql
       |> String.replace(from, to)
       |> NodeCql.create_constraint_index_from_cql()
-      |> EctoNeo4j.Adapter.query()
+      |> Ecto.Adapters.Neo4j.query()
     end)
 
     ci_list
     |> Enum.map(&NodeCql.drop_constraint_index_from_cql/1)
-    |> Enum.map(&EctoNeo4j.Adapter.query/1)
+    |> Enum.map(&Ecto.Adapters.Neo4j.query/1)
   end
 
   def lock_for_migrations(_repo, query, _opts, fun) do

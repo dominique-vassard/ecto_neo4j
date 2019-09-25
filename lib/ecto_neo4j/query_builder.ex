@@ -1,9 +1,9 @@
-defmodule EctoNeo4j.QueryBuilder do
+defmodule Ecto.Adapters.Neo4j.QueryBuilder do
   @moduledoc false
 
   import Ecto.Query
-  alias EctoNeo4j.Cql.Node, as: NodeCql
-  alias EctoNeo4j.Helper
+  alias Ecto.Adapters.Neo4j.Cql.Node, as: NodeCql
+  alias Ecto.Adapters.Neo4j.Helper
 
   @valid_operators [:==, :in, :>, :>=, :<, :<, :min, :max, :count, :sum, :avg]
   def build(query_type, queryable_or_schema, sources, opts \\ [])

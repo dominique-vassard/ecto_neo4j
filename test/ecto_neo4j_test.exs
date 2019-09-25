@@ -1,6 +1,6 @@
-defmodule EctoNeo4jTest do
+defmodule Ecto.Adapters.Neo4jTest do
   use ExUnit.Case
   @moduletag :supported
 
-  doctest EctoNeo4j.Adapter
+  doctest Ecto.Adapters.Neo4j
 end

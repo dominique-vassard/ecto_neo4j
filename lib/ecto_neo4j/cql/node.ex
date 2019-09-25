@@ -1,4 +1,4 @@
-defmodule EctoNeo4j.Cql.Node do
+defmodule Ecto.Adapters.Neo4j.Cql.Node do
   @doc """
   Returns Cypher query to get one node given its uuid
 
@@ -8,7 +8,7 @@ defmodule EctoNeo4j.Cql.Node do
 
   ### Example
 
-      iex> EctoNeo4j.Cql.Node.get_by_uuid("Post")
+      iex> Ecto.Adapters.Neo4j.Cql.Node.get_by_uuid("Post")
       "MATCH\\n  (n:Post)\\nWHERE\\n  n.uuid = {uuid}\\nRETURN\\n  n\\n"
   """
   @spec get_by_uuid(String.t()) :: String.t()
@@ -29,7 +29,7 @@ defmodule EctoNeo4j.Cql.Node do
   ## Example
 
       iex> data = %{title: "New title", uuid: "a-valid-uuid"}
-      iex> EctoNeo4j.Cql.Node.insert("Post", data)
+      iex> Ecto.Adapters.Neo4j.Cql.Node.insert("Post", data)
       {"CREATE
         (n:Post)
       SET
@@ -40,7 +40,7 @@ defmodule EctoNeo4j.Cql.Node do
 
       # With returning fields specified
       iex> data = %{title: "New title", uuid: "a-valid-uuid"}
-      iex> EctoNeo4j.Cql.Node.insert("Post", data, [:uuid])
+      iex> Ecto.Adapters.Neo4j.Cql.Node.insert("Post", data, [:uuid])
       {"CREATE
         (n:Post)
       SET
@@ -94,7 +94,7 @@ defmodule EctoNeo4j.Cql.Node do
 
       iex> data = %{title: "New title"}
       iex> filters = %{id: 5}
-      iex> EctoNeo4j.Cql.Node.update("Post", data, filters)
+      iex> Ecto.Adapters.Neo4j.Cql.Node.update("Post", data, filters)
       {"MATCH
         (n:Post)
       WHERE
@@ -149,7 +149,7 @@ defmodule EctoNeo4j.Cql.Node do
 
   ## Example
 
-      iex> EctoNeo4j.Cql.Node.delete("Post", %{uuid: "a-valid-uuid"})
+      iex> Ecto.Adapters.Neo4j.Cql.Node.delete("Post", %{uuid: "a-valid-uuid"})
       {"MATCH
         (n:Post)
       WHERE
@@ -186,7 +186,7 @@ defmodule EctoNeo4j.Cql.Node do
 
   ## Example
 
-      iex> EctoNeo4j.Cql.Node.delete_all()
+      iex> Ecto.Adapters.Neo4j.Cql.Node.delete_all()
       "MATCH
         (n)
       DETACH DELETE
@@ -209,7 +209,7 @@ defmodule EctoNeo4j.Cql.Node do
 
   ## Example
 
-      iex> EctoNeo4j.Cql.Node.delete_nodes("Post")
+      iex> Ecto.Adapters.Neo4j.Cql.Node.delete_nodes("Post")
       "MATCH
         (n:Post)
       WITH
@@ -244,7 +244,7 @@ defmodule EctoNeo4j.Cql.Node do
   ## Example
 
       # with default `where` and `return`
-      iex> EctoNeo4j.Cql.Node.build_query(:match, "Post")
+      iex> Ecto.Adapters.Neo4j.Cql.Node.build_query(:match, "Post")
       "MATCH
         (n:Post)\\n\\n\\n\\n
       RETURN
@@ -255,7 +255,7 @@ defmodule EctoNeo4j.Cql.Node do
       iex> node_label = "Post"
       iex> where = "title = {title}"
       iex> return = "n"
-      iex> EctoNeo4j.Cql.Node.build_query(:match, node_label, where, "", return)
+      iex> Ecto.Adapters.Neo4j.Cql.Node.build_query(:match, node_label, where, "", return)
       "MATCH
         (n:Post)
       WHERE
@@ -265,7 +265,7 @@ defmodule EctoNeo4j.Cql.Node do
       "
 
       # for deleting
-      iex> EctoNeo4j.Cql.Node.build_query(:delete, "Post")
+      iex> Ecto.Adapters.Neo4j.Cql.Node.build_query(:delete, "Post")
       "MATCH
         (n:Post)\\n\\n\\n
       DETACH DELETE
@@ -391,9 +391,9 @@ defmodule EctoNeo4j.Cql.Node do
 
   ## Example
 
-      iex> EctoNeo4j.Cql.Node.create_index("Post", [:title])
+      iex> Ecto.Adapters.Neo4j.Cql.Node.create_index("Post", [:title])
       "CREATE INDEX ON :Post(title)"
-      iex> EctoNeo4j.Cql.Node.create_index("Post", [:title, :author])
+      iex> Ecto.Adapters.Neo4j.Cql.Node.create_index("Post", [:title, :author])
       "CREATE INDEX ON :Post(title, author)"
 
   """
@@ -407,9 +407,9 @@ defmodule EctoNeo4j.Cql.Node do
 
   ## Example
 
-      iex> EctoNeo4j.Cql.Node.drop_index("Post", [:title])
+      iex> Ecto.Adapters.Neo4j.Cql.Node.drop_index("Post", [:title])
       "DROP INDEX ON :Post(title)"
-      iex> EctoNeo4j.Cql.Node.drop_index("Post", [:title, :author])
+      iex> Ecto.Adapters.Neo4j.Cql.Node.drop_index("Post", [:title, :author])
       "DROP INDEX ON :Post(title, author)"
 
   """
@@ -430,9 +430,9 @@ defmodule EctoNeo4j.Cql.Node do
 
   ## Example
 
-      iex> EctoNeo4j.Cql.Node.create_constraint("Post", [:title])
+      iex> Ecto.Adapters.Neo4j.Cql.Node.create_constraint("Post", [:title])
       "CREATE CONSTRAINT ON (n:Post) ASSERT n.title IS UNIQUE"
-      iex> EctoNeo4j.Cql.Node.create_constraint("Post", [:title, :author])
+      iex> Ecto.Adapters.Neo4j.Cql.Node.create_constraint("Post", [:title, :author])
       "CREATE CONSTRAINT ON (n:Post) ASSERT (n.title, n.author) IS NODE KEY"
 
   """
@@ -451,9 +451,9 @@ defmodule EctoNeo4j.Cql.Node do
 
   ## Example
 
-      iex> EctoNeo4j.Cql.Node.drop_constraint("Post", [:title])
+      iex> Ecto.Adapters.Neo4j.Cql.Node.drop_constraint("Post", [:title])
       "DROP CONSTRAINT ON (n:Post) ASSERT n.title IS UNIQUE"
-      iex> EctoNeo4j.Cql.Node.drop_constraint("Post", [:title, :author])
+      iex> Ecto.Adapters.Neo4j.Cql.Node.drop_constraint("Post", [:title, :author])
       "DROP CONSTRAINT ON (n:Post) ASSERT (n.title, n.author) IS NODE KEY"
 
   """
@@ -496,7 +496,7 @@ defmodule EctoNeo4j.Cql.Node do
 
   ## Example
 
-      iex> EctoNeo4j.Cql.Node.create_non_null_constraint("Post", :title)
+      iex> Ecto.Adapters.Neo4j.Cql.Node.create_non_null_constraint("Post", :title)
       "CREATE CONSTRAINT ON (n:Post) ASSERT exists(n.title)"
   """
   @spec create_non_null_constraint(String.t(), String.t()) :: String.t()
@@ -509,7 +509,7 @@ defmodule EctoNeo4j.Cql.Node do
 
   ## Example
 
-      iex> EctoNeo4j.Cql.Node.drop_non_null_constraint("Post", :title)
+      iex> Ecto.Adapters.Neo4j.Cql.Node.drop_non_null_constraint("Post", :title)
       "DROP CONSTRAINT ON (n:Post) ASSERT exists(n.title)"
   """
   @spec drop_non_null_constraint(String.t(), String.t()) :: String.t()
@@ -533,12 +533,12 @@ defmodule EctoNeo4j.Cql.Node do
 
   ## Example
 
-      iex> EctoNeo4j.Cql.Node.list_all_constraints("Post")
+      iex> Ecto.Adapters.Neo4j.Cql.Node.list_all_constraints("Post")
       "CALL db.constraints()
       YIELD description
       WHERE description CONTAINS \\":Post\\" \\nRETURN description
       "
-      iex> EctoNeo4j.Cql.Node.list_all_constraints("Post", :title)
+      iex> Ecto.Adapters.Neo4j.Cql.Node.list_all_constraints("Post", :title)
       "CALL db.constraints()
       YIELD description
       WHERE description CONTAINS \\":Post\\" AND description CONTAINS '.title'
@@ -565,12 +565,12 @@ defmodule EctoNeo4j.Cql.Node do
 
   ## Example
 
-      iex> EctoNeo4j.Cql.Node.list_all_indexes("Post")
+      iex> Ecto.Adapters.Neo4j.Cql.Node.list_all_indexes("Post")
       "CALL db.indexes()
       YIELD description
       WHERE description CONTAINS \\":Post\\" \\nRETURN description
       "
-      iex> EctoNeo4j.Cql.Node.list_all_indexes("Post", :title)
+      iex> Ecto.Adapters.Neo4j.Cql.Node.list_all_indexes("Post", :title)
       "CALL db.indexes()
       YIELD description
       WHERE description CONTAINS \\":Post\\" AND description CONTAINS 'title'
@@ -599,10 +599,10 @@ defmodule EctoNeo4j.Cql.Node do
   ## Example
 
       iex> constraint_cql = "CONSTRAINT ON ( posts:posts ) ASSERT posts.uuid IS UNIQUE"
-      iex> EctoNeo4j.Cql.Node.drop_constraint_index_from_cql(constraint_cql)
+      iex> Ecto.Adapters.Neo4j.Cql.Node.drop_constraint_index_from_cql(constraint_cql)
       "DROP CONSTRAINT ON ( posts:posts ) ASSERT posts.uuid IS UNIQUE"
       iex> index_cql = "INDEX ON :posts(nodeId)"
-      iex> EctoNeo4j.Cql.Node.drop_constraint_index_from_cql(index_cql)
+      iex> Ecto.Adapters.Neo4j.Cql.Node.drop_constraint_index_from_cql(index_cql)
       "DROP INDEX ON :posts(nodeId)"
   """
   @spec drop_constraint_index_from_cql(String.t()) :: String.t()
@@ -617,10 +617,10 @@ defmodule EctoNeo4j.Cql.Node do
   ## Example
 
       iex> constraint_cql = "CONSTRAINT ON ( posts:posts ) ASSERT posts.uuid IS UNIQUE"
-      iex> EctoNeo4j.Cql.Node.create_constraint_index_from_cql(constraint_cql)
+      iex> Ecto.Adapters.Neo4j.Cql.Node.create_constraint_index_from_cql(constraint_cql)
       "CREATE CONSTRAINT ON ( posts:posts ) ASSERT posts.uuid IS UNIQUE"
       iex> index_cql = "INDEX ON :posts(nodeId)"
-      iex> EctoNeo4j.Cql.Node.create_constraint_index_from_cql(index_cql)
+      iex> Ecto.Adapters.Neo4j.Cql.Node.create_constraint_index_from_cql(index_cql)
       "CREATE INDEX ON :posts(nodeId)"
   """
   @spec create_constraint_index_from_cql(String.t()) :: String.t()
@@ -633,7 +633,7 @@ defmodule EctoNeo4j.Cql.Node do
 
   ## Example
 
-      iex> EctoNeo4j.Cql.Node.rename_property("Post", "titttle", "title")
+      iex> Ecto.Adapters.Neo4j.Cql.Node.rename_property("Post", "titttle", "title")
       "MATCH
         (n:Post)
       WITH
@@ -675,7 +675,7 @@ defmodule EctoNeo4j.Cql.Node do
 
   ## Example
 
-      iex> EctoNeo4j.Cql.Node.relabel("Post", "NewPost")
+      iex> Ecto.Adapters.Neo4j.Cql.Node.relabel("Post", "NewPost")
       "MATCH
         (n:Post)
       WITH

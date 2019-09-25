@@ -1,4 +1,4 @@
-defmodule EctoNeo4j.Storage do
+defmodule Ecto.Adapters.Neo4j.Storage do
   @behaviour Ecto.Adapter.Storage
 
   def storage_up(_) do
@@ -8,7 +8,7 @@ defmodule EctoNeo4j.Storage do
   def storage_down(data) do
     Application.ensure_all_started(data[:otp_app])
 
-    Bolt.Sips.query!(Bolt.Sips.conn(), EctoNeo4j.Cql.Node.delete_all())
+    Bolt.Sips.query!(Bolt.Sips.conn(), Ecto.Adapters.Neo4j.Cql.Node.delete_all())
 
     :ok
   end

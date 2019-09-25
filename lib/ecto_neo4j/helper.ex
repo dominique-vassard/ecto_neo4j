@@ -1,4 +1,4 @@
-defmodule EctoNeo4j.Helper do
+defmodule Ecto.Adapters.Neo4j.Helper do
   @moduledoc """
   Useful helpers
   """
@@ -11,9 +11,9 @@ defmodule EctoNeo4j.Helper do
   ## Examples
 
       iex> to_db_data = %{id: 3, value: "test"}
-      iex> from_db_data = EctoNeo4j.Helper.manage_id(to_db_data, :to_db)
+      iex> from_db_data = Ecto.Adapters.Neo4j.Helper.manage_id(to_db_data, :to_db)
       %{nodeId: 3, value: "test"}
-      iex> EctoNeo4j.Helper.manage_id(from_db_data, :from_db)
+      iex> Ecto.Adapters.Neo4j.Helper.manage_id(from_db_data, :from_db)
       %{id: 3, value: "test"}
 
   """

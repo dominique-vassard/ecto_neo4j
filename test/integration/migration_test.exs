@@ -382,14 +382,17 @@ defmodule Ecto.Integration.MigrationTest do
   setup do
     Bolt.Sips.query!(Bolt.Sips.conn(), "MATCH (n) DETACH DELETE n")
 
-    [EctoNeo4j.Cql.Node.list_all_constraints(""), EctoNeo4j.Cql.Node.list_all_indexes("")]
+    [
+      Ecto.Adapters.Neo4j.Cql.Node.list_all_constraints(""),
+      Ecto.Adapters.Neo4j.Cql.Node.list_all_indexes("")
+    ]
     |> Enum.map(fn cql ->
-      EctoNeo4j.Adapter.query!(cql)
+      Ecto.Adapters.Neo4j.query!(cql)
       |> Map.get(:records, [])
     end)
     |> List.flatten()
-    |> Enum.map(&EctoNeo4j.Cql.Node.drop_constraint_index_from_cql/1)
-    |> Enum.map(&EctoNeo4j.Adapter.query/1)
+    |> Enum.map(&Ecto.Adapters.Neo4j.Cql.Node.drop_constraint_index_from_cql/1)
+    |> Enum.map(&Ecto.Adapters.Neo4j.query/1)
 
     {:ok, migration_number: System.unique_integer([:positive]) + @base_migration}
   end
@@ -410,17 +413,19 @@ defmodule Ecto.Integration.MigrationTest do
     """
 
     assert :ok == up(PoolRepo, num, CreateMigration, log: false)
-    assert %Bolt.Sips.Response{results: [%{"nb_nodes" => 0}]} = EctoNeo4j.Adapter.query!(cql_node)
+
+    assert %Bolt.Sips.Response{results: [%{"nb_nodes" => 0}]} =
+             Ecto.Adapters.Neo4j.query!(cql_node)
 
     assert %Bolt.Sips.Response{results: [%{"nb_constraints" => 1}]} =
-             EctoNeo4j.Adapter.query!(cql_constraint)
+             Ecto.Adapters.Neo4j.query!(cql_constraint)
 
     assert :ok == down(PoolRepo, num, CreateMigration, log: false)
 
-    # assert %Bolt.Sips.Response{results: [%{"nb_nodes" => 0}]} = EctoNeo4j.Adapter.query!(cql_node)
+    # assert %Bolt.Sips.Response{results: [%{"nb_nodes" => 0}]} = Ecto.Adapters.Neo4j.query!(cql_node)
 
     # assert %Bolt.Sips.Response{results: [%{"nb_constraints" => 0}]} =
-    #          EctoNeo4j.Adapter.query!(cql_constraint)
+    #          Ecto.Adapters.Neo4j.query!(cql_constraint)
   end
 
   @tag :supported
@@ -433,10 +438,10 @@ defmodule Ecto.Integration.MigrationTest do
     """
 
     assert :ok == up(PoolRepo, num, InferredDropIndexMigration, log: false)
-    assert %Bolt.Sips.Response{results: [%{"nb_index" => 1}]} = EctoNeo4j.Adapter.query!(cql)
+    assert %Bolt.Sips.Response{results: [%{"nb_index" => 1}]} = Ecto.Adapters.Neo4j.query!(cql)
 
     assert :ok == down(PoolRepo, num, InferredDropIndexMigration, log: false)
-    assert %Bolt.Sips.Response{results: [%{"nb_index" => 0}]} = EctoNeo4j.Adapter.query!(cql)
+    assert %Bolt.Sips.Response{results: [%{"nb_index" => 0}]} = Ecto.Adapters.Neo4j.query!(cql)
   end
 
   @tag :not_supported
@@ -578,10 +583,14 @@ defmodule Ecto.Integration.MigrationTest do
     """
 
     assert :ok == up(PoolRepo, num, RenameMigration, log: false)
-    assert %Bolt.Sips.Response{results: [%{"nb_nodes" => 1}]} = EctoNeo4j.Adapter.query!(cql_node)
+
+    assert %Bolt.Sips.Response{results: [%{"nb_nodes" => 1}]} =
+             Ecto.Adapters.Neo4j.query!(cql_node)
 
     assert :ok == down(PoolRepo, num, RenameMigration, log: false)
-    assert %Bolt.Sips.Response{results: [%{"nb_nodes" => 0}]} = EctoNeo4j.Adapter.query!(cql_node)
+
+    assert %Bolt.Sips.Response{results: [%{"nb_nodes" => 0}]} =
+             Ecto.Adapters.Neo4j.query!(cql_node)
   end
 
   @tag :not_supported
