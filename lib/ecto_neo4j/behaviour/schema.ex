@@ -28,7 +28,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Schema do
     end
   end
 
-  def insert(adapter_meta, %{source: source}, fields, _on_conflict, returning, _opts \\ []) do
+  def insert(adapter_meta, %{source: source}, fields, _on_conflict, returning, opts \\ []) do
     returning_field =
       returning
       |> Enum.map(fn
@@ -36,19 +36,24 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Schema do
         field -> field
       end)
 
-    execute(adapter_meta, NodeCql.insert(source, format_data(fields), returning_field))
+    execute(adapter_meta, NodeCql.insert(source, format_data(fields), returning_field), opts)
   end
 
-  def update(adapter_meta, %{source: source}, fields, filters, _returning, _options) do
-    execute(adapter_meta, NodeCql.update(source, format_data(fields), format_data(filters)))
+  def update(adapter_meta, %{source: source}, fields, filters, _returning, opts) do
+    execute(adapter_meta, NodeCql.update(source, format_data(fields), format_data(filters)), opts)
   end
 
-  def delete(adapter_meta, %{source: source}, filters, _options) do
-    execute(adapter_meta, NodeCql.delete(source, format_data(filters)))
+  def delete(adapter_meta, %{source: source}, filters, opts) do
+    execute(adapter_meta, NodeCql.delete(source, format_data(filters)), opts)
   end
 
-  defp execute(%{pid: pool}, {cql, params}) do
-    conn = Ecto.Adapters.Neo4j.Behaviour.Queryable.get_conn(pool)
+  defp execute(%{pid: pool}, {cql, params}, opts) do
+    default_role =
+      Application.get_env(:ecto_neo4j, Ecto.Adapters.Neo4j, bolt_role: :direct)
+      |> Keyword.get(:bolt_role)
+
+    bolt_role = Keyword.get(opts, :bolt_role, default_role)
+    conn = Ecto.Adapters.Neo4j.Behaviour.Queryable.get_conn(pool, bolt_role)
 
     case Bolt.Sips.query(conn, cql, params) do
       {:ok, %Bolt.Sips.Response{results: [%{"n" => _record}]}} ->

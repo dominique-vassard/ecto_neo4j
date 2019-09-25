@@ -3,6 +3,10 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
 
   @chunk_size Application.get_env(:ecto_neo4j, Ecto.Adapters.Neo4j, chunk_size: 10_000)
               |> Keyword.get(:chunk_size)
+  @batch Application.get_env(:ecto_neo4j, Ecto.Adapters.Neo4j, batch: false)
+         |> Keyword.get(:batch)
+  @bolt_role Application.get_env(:ecto_neo4j, Ecto.Adapters.Neo4j, bolt_role: :direct)
+             |> Keyword.get(:bolt_role)
 
   def checkout(_adapter_meta, _opts, _callback) do
     raise "checkout/1 is not supported"
@@ -28,14 +32,15 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
         preprocess,
         opts \\ []
       ) do
-    is_batch? = Keyword.get(preprocess, :batch, false)
+    is_batch? = Keyword.get(preprocess, :batch, @batch)
+    bolt_role = Keyword.get(preprocess, :bolt_role, @bolt_role)
 
     opts =
       opts ++ [batch: is_batch?, chunk_size: Keyword.get(preprocess, :chunk_size, @chunk_size)]
 
     {cypher_query, params} = QueryBuilder.build(query_type, query, sources, opts)
 
-    conn = get_conn(pool)
+    conn = get_conn(pool, bolt_role)
 
     run_query(conn, query, cypher_query, params, is_batch?, query_type, opts)
   end
@@ -247,17 +252,18 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
       end
     end
 
-    conn_role = Keyword.get(opts, :bolt_role, :direct)
+    conn_role = Keyword.get(opts, :bolt_role, @bolt_role)
 
     apply(Bolt.Sips, fun, [get_conn_or_pool(pool, conn_role), callback, opts])
   end
 
-  defp get_conn_or_pool(pool, role) do
-    Process.get(key(pool), Bolt.Sips.conn(role))
+  defp get_conn_or_pool(pool, bolt_role) do
+    Process.get(key(pool), Bolt.Sips.conn(bolt_role))
   end
 
-  def get_conn(pool) do
-    Process.get(key(pool)) || Bolt.Sips.conn()
+  def get_conn(pool, bolt_role \\ nil) do
+    bolt_role = bolt_role || @bolt_role
+    Process.get(key(pool)) || Bolt.Sips.conn(bolt_role)
   end
 
   defp put_conn(pool, conn) do
