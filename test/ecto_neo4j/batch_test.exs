@@ -12,11 +12,8 @@ defmodule Ecto.Adapters.Neo4j.BatchTest do
       1..500
       |> Enum.map(fn x ->
         "CREATE (:posts{title: 'title_#{inspect(x)}'})"
-        # [title: "title_#{inspect(x)}"]
       end)
       |> Enum.join("\n")
-
-    # TestRepo.insert_all(Post, data)
 
     Ecto.Adapters.Neo4j.query!(data)
     :ok
@@ -128,10 +125,6 @@ defmodule Ecto.Adapters.Neo4j.BatchTest do
   end
 
   test "insert, update and delete" do
-    # posts =
-    #   TestRepo.all(Post)
-    #   |> IO.inspect()
-
     TestRepo.update_all(Post, [set: [title: "New title"]], batch: true)
 
     cql = """
@@ -147,21 +140,5 @@ defmodule Ecto.Adapters.Neo4j.BatchTest do
 
     TestRepo.delete_all(Post, batch: true)
     assert %Bolt.Sips.Response{results: [%{"nb_updated" => 0}]} = Ecto.Adapters.Neo4j.query!(cql)
-
-    # post = %Post{title: "insert, update, delete", text: "fetch empty"}
-    # meta = post.__meta__
-
-    # assert %Post{} = inserted = TestRepo.insert!(post)
-    # assert %Post{} = updated = TestRepo.update!(Ecto.Changeset.change(inserted, text: "new"))
-
-    # deleted_meta = put_in(meta.state, :deleted)
-    # assert %Post{__meta__: ^deleted_meta} = TestRepo.delete!(updated)
-
-    # loaded_meta = put_in(meta.state, :loaded)
-    # assert %Post{__meta__: ^loaded_meta} = TestRepo.insert!(post)
-
-    # post = TestRepo.one(Post)
-    # assert post.__meta__.state == :loaded
-    # assert post.inserted_at
   end
 end
