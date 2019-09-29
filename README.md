@@ -72,9 +72,14 @@ What you need to know about migrations:
   - `create table` don't do anything as expected as Neo4j is schemaless
   - `drop table` will remove all the specified nodes and all existing indexes / constraints
   - `primary_key` will be transformed in a constraint `CONSTRAINT ON(n:label) ASSERT n.property IS UNIQUE`
-  - `create index(idx_name, cols, unique: true)` will either create an unique constraint or a node key constraint (which is only supported by Entreprise Edition)
-  - `create index(idx_name, cols, unique: true)` will create a classic index
+  - `create index(label, properties, unique: true)` will either create an unique constraint or a node key constraint (which is only supported by Entreprise Edition)
+  - `create index(label, properties)` will create a classic index
   - `rename table` and `rename col` will move the exisiting constraints and indexes from the old to the new entity 
+
+## DO NOT ADD A NAME TO INDEXES / CONSTRAINTS
+You have the possibility to give an index/constraint a name via the option of `create/3`. Don't do it.  
+First, Neo4j doesn't support named indexes/cosntraints. Because of this "limitation",in case of uniqueness error or such, EctoNeo4j has to rebuild an index name, 
+which it does considering the default index naming. 
 
 ## Repo
 Most of `Ecto.Repo` features work then you are free to use the classic `Repo.insert`, `Repo.one`, `Repo.transaction` etc.  
@@ -218,6 +223,7 @@ This option can be added in your configuration if you want the behaviour to happ
 [ ] Telemetry  
 [ ] insert_all performance
 [ ] stream
+[ ] `ecto.drop` should remove constraints and indexes()
 
 # Can I contribute?  
 Yes, you can! Please, do!  

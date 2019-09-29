@@ -62,6 +62,16 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Schema do
       {:ok, %Bolt.Sips.Response{records: [record]}} ->
         {:ok, record}
 
+      {:error,
+       %Bolt.Sips.Error{
+         code: "Neo.ClientError.Schema.ConstraintValidationFailed",
+         message: message
+       }} ->
+        [_, label, property] =
+          Regex.run(~r/.*`(?<label>[a-zA-Z_]+)`.*`(?<property>[a-zA-Z_]+)`/, message)
+
+        {:invalid, [{:unique, "#{label}_#{property}_index"}]}
+
       {:error, reason} ->
         {:error, reason}
     end
