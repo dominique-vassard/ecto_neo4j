@@ -14,8 +14,8 @@ Add `ecto` and `ecto_neo4j` to your dependencies:
 ```elixir
 def deps do
   [
-    {:ecto, "~> 3.2},
-    {:ecto_sql, "~> 3.2},
+    {:ecto, "~> 3.2"},
+    {:ecto_sql, "~> 3.2"},
     {:ecto_neo4j, "~> 0.5"}
   ]
 end
@@ -44,7 +44,7 @@ defmodule MyApp.Repo do
 end
 ```
 
-# Knwons limitations 
+# Knowns limitations 
 ## Ecto is designed for relational database but Neo4j is a graph database
 Then not all of Ecto features are available in `EctoNeo4j`, either because they don't have their counterparts 
 in Cypher Neo4j or because they don't make sense in Neo4j.  
@@ -54,31 +54,31 @@ Because of this limitations, EctoNeo4j is useful for one-node or one-label opera
 ## The special case of `id`s
 As you may know, it is strongly recommended to NOT rely on Neo4j internal ids, as they can be reaffected.  
 With Ecto.Schema, `id` can be managed automatically. `EctoNeo4j` allows to not change this way of working by
-using a property called `nodeId` on created/updated nodes. This proprety is automically converted into `id` when 
+using a property called `nodeId` on created/updated nodes. This proprety is automatically converted into `id` when 
 retrieving data from database.
 
 # Usage
 ## Schema
-Every schema fetaurees can be used as usual but keep in mind that all those related to joins will be irrelevant, this includes:
+Every schema features can be used as usual but keep in mind that all those related to joins will be irrelevants, this includes:
 `has_many`, `has_one`, `belongs_to`, `many_to_many`.  
 `prefix` is not available as there is no counterpart in Neo4j (yet, but maybe in version 4 with the multiple databases).
 
 ## Migration
 All features work, but with some subtleties for some.  
-One important thing if you have big graph, all operations in migation are performed via batch. This means your migrations
-will also be complete, but it can take some time. More on batch [here](#batch).
+One important thing if that all operations in migation are performed via batch. This means your migrations
+will be successfully executed regardless of your database size, but it can take some time. More on batch [here](#batch).
 
 What you need to know about migrations:
   - `create table` don't do anything as expected as Neo4j is schemaless
   - `drop table` will remove all the specified nodes and all existing indexes / constraints
   - `primary_key` will be transformed in a constraint `CONSTRAINT ON(n:label) ASSERT n.property IS UNIQUE`
-  - `create index(label, properties, unique: true)` will either create an unique constraint or a node key constraint (which is only supported by Entreprise Edition)
+  - `create index(label, properties, unique: true)` will either create an unique constraint or a node key constraint (the latter is only supported by Entreprise Edition)
   - `create index(label, properties)` will create a classic index
-  - `rename table` and `rename col` will move the exisiting constraints and indexes from the old to the new entity 
+  - `rename table` and `rename col` will move the existing constraints and indexes from the old entity to the new one 
 
 ## DO NOT ADD A NAME TO INDEXES / CONSTRAINTS
-You have the possibility to give an index/constraint a name via the option of `create/3`. Don't do it.  
-First, Neo4j doesn't support named indexes/cosntraints. Because of this "limitation",in case of uniqueness error or such, EctoNeo4j has to rebuild an index name, 
+You have the possibility to give index/constraint a name via the option of `create/3`. Don't do it.  
+First, Neo4j doesn't support named indexes/constraints. Because of this "limitation", in case of uniqueness error or such, EctoNeo4j has to rebuild an index name, 
 which it does considering the default index naming. 
 
 ## Repo
@@ -86,7 +86,7 @@ Most of `Ecto.Repo` features work then you are free to use the classic `Repo.ins
 
 ### Unsupported features
   - `Repo.stream` (maybe soon)
-  - nested transaction: they don't exists in Neo4j
+  - nested transaction: they don't exist in Neo4j
   - `Repo.checkout`
 
 ### About Ecto.Query
@@ -97,7 +97,7 @@ As you expect, none all `Ecto.Query` are available, here is a list of whan can b
   - `from` which is `MATCH` in cypher
   - `last`
   - `limit`
-  - `offset`
+  - `offset` which is `SKIP` in cypher
   - `order_by`
   - `select` which is `RETURN` in cypher
   - `update` which is `MATCH... SET` in cypher 
@@ -111,7 +111,7 @@ More on batch [here](#batch).
 
 ## Raw cypher query
 Raw cypher queries can be executed thanks to `Ecto.Adapters.Neo4j.query(cql, params, opts)` and `Ecto.Adapters.Neo4j.query!(cql, params, opts)`.  
-They return a Bolt.Sips.Response if case of success
+They return a `Bolt.Sips.Response` if case of success
 
 Example:
 ```elixir
@@ -144,8 +144,8 @@ They works on the same logic:
 #### :basic
 The default batch type is `:basic`. Query must have:  
   - `LIMIT {limit}` in order to specify the chunk size
-  - returns `RETURN COUNT(the_node_you_re_touching) AS nb_touched_nodes` in order to have the count of touched nodes
-This batch type is usually used for `delete` operation.
+  - returns `RETURN COUNT(the_node_you_re_touching) AS nb_touched_nodes` in order to have the count of touched nodes.  
+This batch type is usually used for `delete` operation.  
 It is not required to provide the `limit` in your `params`, it will be handled by `batch_query`.   
 
 Example:
@@ -155,7 +155,7 @@ MATCH
   (n:Post)
 WHERE
   n.title CONTAINS "this"
-WITH                            <--- THe WITH allows to work on a subset...
+WITH                            <--- The `WITH` allows to work on a subset...
   n AS n                        <--- 
 LIMIT {limit}                   <--- with the specified nuber of node
 DETACH DELETE                   <--- Perform the desired operation
@@ -169,8 +169,8 @@ Ecto.Adapters.Neo4j.batch_query(cql)
 #### :with_skip
 This batch type is useful where a simple `COUNT` is irrevelant (in update operation for example). Query must have:  
   - `SKIP {skip} LIMIT {limit}` in order to specify the chunk size
-  - returns `RETURN COUNT(the_node_you_re_touching) AS nb_touched_nodes` in order to have the count of touched nodes
-  It is not required to provide the `skip` nor the `limit` in your `params`, it will be handled by `batch_query`.   
+  - returns `RETURN COUNT(the_node_you_re_touching) AS nb_touched_nodes` in order to have the count of touched nodes.  
+It is not required to provide the `skip` nor the `limit` in your `params`, they will be handled by `batch_query`.   
 
 Example:
 ```
@@ -193,9 +193,9 @@ Ecto.Adapters.Neo4j.batch_query(cql, %{}, :with_skip)
 ### Chunk size
 The default chunk size is 10_000.  
 The ideal chunk size is tighly related to the machine RAM, and you can specify if you want:
-  - at query level with the options `[chunk_size: integer]`
+  - at query level with the options `[chunk_size: integer]`  
   Example: `Ecto.Adapters.Neo4j.query(cql, params, :basic, [chunk_size: 50_000])`
-  - in your configuration, you can define the desired default chunk_size:
+  - in your configuration, you can define the desired default chunk_size:  
 ```elixir
   config :ecto_neo4j, Ecto.Adapters.Neo4j,
   chunk_size: 50_000
