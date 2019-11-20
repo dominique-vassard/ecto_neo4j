@@ -1,4 +1,8 @@
 defmodule Ecto.Adapters.Neo4j.Cql.Node do
+  @moduledoc """
+  Cypher query builder for Node
+  """
+
   @doc """
   Returns Cypher query to get one node given its uuid
 
@@ -499,7 +503,7 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
       iex> Ecto.Adapters.Neo4j.Cql.Node.create_non_null_constraint("Post", :title)
       "CREATE CONSTRAINT ON (n:Post) ASSERT exists(n.title)"
   """
-  @spec create_non_null_constraint(String.t(), String.t()) :: String.t()
+  @spec create_non_null_constraint(String.t(), atom()) :: String.t()
   def create_non_null_constraint(node_label, column) do
     manage_non_null_constraint(node_label, column, :create)
   end
@@ -512,12 +516,12 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
       iex> Ecto.Adapters.Neo4j.Cql.Node.drop_non_null_constraint("Post", :title)
       "DROP CONSTRAINT ON (n:Post) ASSERT exists(n.title)"
   """
-  @spec drop_non_null_constraint(String.t(), String.t()) :: String.t()
+  @spec drop_non_null_constraint(String.t(), atom()) :: String.t()
   def drop_non_null_constraint(node_label, column) do
     manage_non_null_constraint(node_label, column, :drop)
   end
 
-  @spec manage_non_null_constraint(String.t(), String.t(), :create | :drop) :: String.t()
+  @spec manage_non_null_constraint(String.t(), atom(), :create | :drop) :: String.t()
   defp manage_non_null_constraint(node_label, column, operation)
        when operation in [:create, :drop] do
     op =
@@ -545,7 +549,7 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
       RETURN description
       "
   """
-  @spec list_all_constraints(String.t(), nil | atom()) :: String.t()
+  @spec list_all_constraints(String.t(), atom()) :: String.t()
   def list_all_constraints(node_label, property \\ nil) do
     where_prop =
       if property do
@@ -558,6 +562,7 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
     WHERE description CONTAINS ":#{node_label}" #{where_prop}
     RETURN description
     """
+    |> IO.inspect()
   end
 
   @doc """
