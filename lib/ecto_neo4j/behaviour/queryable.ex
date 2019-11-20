@@ -146,15 +146,17 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
   ### Example
       Ecto.Adapters.Neo4j.Repo.query("MATCH (n:Post {uuid: {uuid}}", %{uuid: "unique_id"})
   """
-  def query(cql, params \\ %{}, _opts \\ []) do
-    Bolt.Sips.query(Bolt.Sips.conn(), cql, params)
+  def query(cql, params \\ %{}, opts \\ []) do
+    conn = Keyword.get(opts, :conn, Bolt.Sips.conn())
+    Bolt.Sips.query(conn, cql, params)
   end
 
   @doc """
   Same as `query` but raises in case of error;
   """
-  def query!(cql, params \\ %{}, _opts \\ []) do
-    Bolt.Sips.query!(Bolt.Sips.conn(), cql, params)
+  def query!(cql, params \\ %{}, opts \\ []) do
+    conn = Keyword.get(opts, :conn, Bolt.Sips.conn())
+    Bolt.Sips.query!(conn, cql, params)
   end
 
   def batch_query!(cql, params \\ %{}, batch_type \\ :basic, opts \\ []) do
