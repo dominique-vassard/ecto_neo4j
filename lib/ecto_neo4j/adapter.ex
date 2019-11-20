@@ -47,6 +47,16 @@ defmodule Ecto.Adapters.Neo4j do
   defdelegate insert(adapter_meta, schema_meta, fields, on_conflict, returning, options),
     to: Ecto.Adapters.Neo4j.Behaviour.Schema
 
+  @doc """
+  Insert data into database and create relationship if necessary.
+  """
+  @spec insert(Ecto.Repo.t(), Ecto.Schema.t() | Ecto.Changeset.t(), Keyword.t()) ::
+          Ecto.Schema.t()
+  def insert(repo, data, opts \\ []) do
+    repo.insert(data, opts)
+    |> EctoNeo4j.Behaviour.Relationship.process_relationships()
+  end
+
   defdelegate update(adapter_meta, schema_meta, fields, filters, returning, options),
     to: Ecto.Adapters.Neo4j.Behaviour.Schema
 
