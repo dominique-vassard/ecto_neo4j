@@ -5,9 +5,12 @@ defmodule EctoNeo4j.RelationshipsTest do
   alias Ecto.Integration.TestRepo
   alias EctoNeo4j.Integration.{User, Post}
 
-  test "ok" do
+  setup do
     Ecto.Adapters.Neo4j.query!("MATCH (n) DETACH DELETE n")
+    :ok
+  end
 
+  test "creation ok" do
     post1_data = %Post{
       uuid: "ae830851-9e93-46d5-bbf7-23ab99846497",
       title: "First",
@@ -21,6 +24,7 @@ defmodule EctoNeo4j.RelationshipsTest do
       uuid: "727289bc-ec28-4459-a9dc-a51ee6bfd6ab",
       title: "Second",
       text: "This is the second",
+      rel_read: %{},
       rel_wrote: %{
         when: ~D[2018-02-01]
       }
@@ -41,9 +45,10 @@ defmodule EctoNeo4j.RelationshipsTest do
     cql_check = """
     MATCH
       (u:User {uuid: {user_uuid}})-[rel1:WROTE {when: date({post1_when})}]->(p1:Post {uuid: {post1_uuid}}),
-      (u)-[rel2:WROTE {when: date({post2_when})}]->(p2:Post {uuid: {post2_uuid}})
+      (u)-[rel2:WROTE {when: date({post2_when})}]->(p2:Post {uuid: {post2_uuid}}),
+      (u)-[rel3:READ]->(p2)
       RETURN
-        COUNT(rel1) + COUNT(rel2) AS nb_rel
+        COUNT(rel1) + COUNT(rel2) + COUNT(rel3) AS nb_rel
     """
 
     params = %{
@@ -54,7 +59,7 @@ defmodule EctoNeo4j.RelationshipsTest do
       post2_when: post2_data.rel_wrote.when
     }
 
-    assert %Bolt.Sips.Response{results: [%{"nb_rel" => 2}]} =
+    assert %Bolt.Sips.Response{results: [%{"nb_rel" => 3}]} =
              Ecto.Adapters.Neo4j.query!(cql_check, params)
   end
 end

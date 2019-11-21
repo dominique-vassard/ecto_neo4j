@@ -35,8 +35,24 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Schema do
         :id -> :nodeId
         field -> field
       end)
+      |> Enum.reject(fn k ->
+        case Atom.to_string(k) do
+          "rel" <> _rel_type -> true
+          _ -> false
+        end
+      end)
 
-    execute(adapter_meta, NodeCql.insert(source, format_data(fields), returning_field), opts)
+    # Relationships should not be saved as node properties
+    insert_data =
+      fields
+      |> Enum.reject(fn {k, _} ->
+        case Atom.to_string(k) do
+          "rel" <> _rel_type -> true
+          _ -> false
+        end
+      end)
+
+    execute(adapter_meta, NodeCql.insert(source, format_data(insert_data), returning_field), opts)
   end
 
   def update(adapter_meta, %{source: source}, fields, filters, _returning, opts) do

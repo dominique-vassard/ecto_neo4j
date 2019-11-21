@@ -10,7 +10,10 @@ defmodule EctoNeo4j.Behaviour.Relationship do
   """
   @spec process_relationships({:ok, Ecto.Schema.t()}) :: Ecto.Schema.t()
   def process_relationships({:ok, %{__struct__: module} = data} = result) do
-    Enum.map(module.__schema__(:associations), &manage_assoc(data, &1))
+    Enum.map(module.__schema__(:associations), fn assoc ->
+      manage_assoc(data, Map.get(data, assoc))
+    end)
+
     result
   end
 
@@ -18,32 +21,51 @@ defmodule EctoNeo4j.Behaviour.Relationship do
     result
   end
 
-  @spec manage_assoc(map(), map()) :: :ok | {:error, any()}
-  defp manage_assoc(data, assoc) do
-    Enum.each(Map.get(data, assoc), fn data_assoc ->
-      {cql, params} =
-        data_assoc
-        |> extract_relationship(format_node(data), format_node(data_assoc))
-        |> EctoNeo4j.Cql.Relationship.create()
+  @spec manage_assoc(map(), Ecto.Association.NotLoaded.t() | map()) :: :ok | {:error, any()}
+  defp manage_assoc(_, %Ecto.Association.NotLoaded{}) do
+    :ok
+  end
 
-      Ecto.Adapters.Neo4j.query(cql, params)
+  defp manage_assoc(data, data_assoc) do
+    Enum.each(data_assoc, fn data_assoc ->
+      data_assoc
+      |> extract_relationships()
+      |> Enum.map(fn relationship ->
+        insert_relationship(relationship, format_node(data), format_node(data_assoc))
+      end)
     end)
   end
 
-  @spec extract_relationship(map(), Node.t(), Node.t()) :: Relationship.t()
-  defp extract_relationship(data, start_node, end_node) do
-    Enum.filter(Map.from_struct(data), fn {k, _v} ->
-      case Atom.to_string(k) do
-        "rel" <> _rel_type -> true
-        _ -> false
-      end
+  @spec insert_relationship(Relationship.t(), Node.t(), Node.t()) ::
+          {:ok, Bolt.Sips.Response.t()} | {:error, any()}
+  defp insert_relationship(relationship, start_node, end_node) do
+    {cql, params} =
+      relationship
+      |> format_relationship(start_node, end_node)
+      |> EctoNeo4j.Cql.Relationship.create()
+
+    Ecto.Adapters.Neo4j.query(cql, params)
+  end
+
+  # Extract valid realtionship from data
+  # A relationship with `nil` as properties is not valid
+  @spec extract_relationships(map()) :: [Relationship.t()]
+  defp extract_relationships(data) do
+    Enum.filter(Map.from_struct(data), fn
+      {k, v} when not is_nil(v) ->
+        case Atom.to_string(k) do
+          "rel" <> _rel_type -> true
+          _ -> false
+        end
+
+      _ ->
+        false
     end)
-    |> List.first()
-    |> format_relationship(start_node, end_node)
   end
 
   @spec format_relationship({atom(), map()}, Node.t(), Node.t()) :: Relationship.t()
-  defp format_relationship({rel_type_atom, properties}, start_node, end_node) do
+  defp format_relationship({rel_type_atom, properties}, start_node, end_node)
+       when is_map(properties) do
     rel_type =
       rel_type_atom
       |> Atom.to_string()
@@ -56,6 +78,10 @@ defmodule EctoNeo4j.Behaviour.Relationship do
       start: start_node,
       end: end_node
     }
+  end
+
+  defp format_relationship({_, nil}, _, _) do
+    nil
   end
 
   @spec format_node(map()) :: Node.t()

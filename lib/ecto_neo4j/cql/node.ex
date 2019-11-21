@@ -562,7 +562,6 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
     WHERE description CONTAINS ":#{node_label}" #{where_prop}
     RETURN description
     """
-    |> IO.inspect()
   end
 
   @doc """

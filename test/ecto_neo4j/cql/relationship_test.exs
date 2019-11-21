@@ -40,7 +40,7 @@ defmodule EctoNeo4j.Cql.RelationshipTest do
            MATCH
              (n1:User {uuid: {start_node_uuid}}),
              (n2:Post {uuid: {end_node_uuid}})
-           MERGE
+           CREATE
              (n1)-[rel:WROTE]->(n2)
            SET
              rel.when = {when}\n
