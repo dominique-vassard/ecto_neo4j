@@ -4,7 +4,7 @@ defmodule EctoNeo4j.Cql.RelationshipTest do
 
   alias Bolt.Sips.Types.{Node, Relationship}
 
-  alias EctoNeo4j.Cql.Relationship, as: RelationshipCql
+  alias Ecto.Adapters.Neo4j.Cql.Relationship, as: RelationshipCql
 
   test "create/1" do
     start_node = %Bolt.Sips.Types.Node{

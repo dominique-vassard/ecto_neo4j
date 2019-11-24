@@ -26,7 +26,8 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
 
   def execute(
         %{pid: pool},
-        %{sources: {{_, _schema, _}}},
+        %{sources: _},
+        # %{sources: {{_, _schema, _}}},
         {:nocache, {query_type, query}},
         sources,
         preprocess,
@@ -34,18 +35,32 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
       ) do
     is_batch? = Keyword.get(preprocess, :batch, @batch)
     bolt_role = Keyword.get(preprocess, :bolt_role, @bolt_role)
+    is_preload? = is_preload?(query.select)
 
     opts =
-      opts ++ [batch: is_batch?, chunk_size: Keyword.get(preprocess, :chunk_size, @chunk_size)]
+      opts ++
+        [
+          is_preload?: is_preload?,
+          batch: is_batch?,
+          chunk_size: Keyword.get(preprocess, :chunk_size, @chunk_size)
+        ]
 
     {cypher_query, params} = QueryBuilder.build(query_type, query, sources, opts)
 
     conn = get_conn(pool, bolt_role)
 
-    run_query(conn, query, cypher_query, params, is_batch?, query_type, opts)
+    run_query(conn, query, cypher_query, params, is_batch?, is_preload?, query_type, opts)
   end
 
-  defp run_query(_, _, query, params, true, query_type, opts)
+  defp is_preload?(%Ecto.Query.SelectExpr{expr: {:{}, [], [_, {:&, [], [0]}]}, fields: [_ | _]}) do
+    true
+  end
+
+  defp is_preload?(_) do
+    false
+  end
+
+  defp run_query(_, _, query, params, true, _is_preload?, query_type, opts)
        when query_type in [:update, :delete] do
     batch_type =
       if query_type == :update do
@@ -63,7 +78,29 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
     end
   end
 
-  defp run_query(conn, query, cypher_query, params, _is_batch?, query_type, _opts) do
+  defp run_query(conn, query, cypher_query, params, _is_batch?, true, query_type, _opts) do
+    case Bolt.Sips.query(conn, cypher_query, params) do
+      {:ok, results} ->
+        res =
+          Enum.map(results.results, fn r ->
+            rels =
+              List.foldl(r["relationships"], %{}, fn rel, acc ->
+                Map.merge(acc, relationship_to_map(rel))
+              end)
+
+            r["n"].properties
+            |> Map.merge(rels)
+            |> format_results(query.select)
+          end)
+
+        {length(res), format_final_result(query_type, res)}
+
+      {:error, error} ->
+        raise Bolt.Sips.Exception, error.message
+    end
+  end
+
+  defp run_query(conn, query, cypher_query, params, _is_batch?, _is_preload?, query_type, _opts) do
     case Bolt.Sips.query(conn, cypher_query, params) do
       {:ok, results} ->
         res = Enum.map(results.results, &format_results(&1, query.select))
@@ -92,8 +129,9 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
     fields
     # |> Enum.map(fn {{:., _, [{:&, [], [0]}, field_atom]}, _, _} -> field_atom end)
     |> Enum.map(&format_result_field/1)
-    |> Enum.into([], fn key ->
-      {key, Map.fetch!(results, key)}
+    |> Enum.into([], fn
+      "rel_" <> _ = key -> {key, Map.get(results, key)}
+      key -> {key, Map.fetch!(results, key)}
     end)
     |> Keyword.values()
   end
@@ -134,6 +172,11 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
 
   defp manage_id(data) do
     data
+  end
+
+  defp relationship_to_map(%{type: rel_type, properties: properties}) do
+    %{}
+    |> Map.put(("rel_" <> rel_type) |> String.downcase(), properties)
   end
 
   @doc """

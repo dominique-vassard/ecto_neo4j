@@ -42,7 +42,7 @@ defmodule EctoNeo4j.Behaviour.Relationship do
     {cql, params} =
       relationship
       |> format_relationship(start_node, end_node)
-      |> EctoNeo4j.Cql.Relationship.create()
+      |> Ecto.Adapters.Neo4j.Cql.Relationship.create()
 
     Ecto.Adapters.Neo4j.query(cql, params)
   end

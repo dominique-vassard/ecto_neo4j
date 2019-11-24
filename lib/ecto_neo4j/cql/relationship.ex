@@ -1,4 +1,4 @@
-defmodule EctoNeo4j.Cql.Relationship do
+defmodule Ecto.Adapters.Neo4j.Cql.Relationship do
   @moduledoc """
   Cypher query builder for Node
   """
@@ -107,5 +107,16 @@ defmodule EctoNeo4j.Cql.Relationship do
       |> Map.merge(relationship.properties)
 
     {cql, params}
+  end
+
+  def get_related(start_node_label, end_node_label, where, return) do
+    """
+    MATCH
+      (n0:#{start_node_label})-[rel]->(n:#{end_node_label})
+    WHERE
+      #{where}
+    RETURN
+      COLLECT(rel) AS relationships, n
+    """
   end
 end

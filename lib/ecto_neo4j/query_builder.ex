@@ -3,10 +3,63 @@ defmodule Ecto.Adapters.Neo4j.QueryBuilder do
 
   import Ecto.Query
   alias Ecto.Adapters.Neo4j.Cql.Node, as: NodeCql
+  alias Ecto.Adapters.Neo4j.Cql.Relationship, as: RelationshipCql
   alias Ecto.Adapters.Neo4j.Helper
 
   @valid_operators [:==, :in, :>, :>=, :<, :<, :min, :max, :count, :sum, :avg]
   def build(query_type, queryable_or_schema, sources, opts \\ [])
+
+  def build(_query_type, %Ecto.Query{} = query, sources, [{:is_preload?, true} | _]) do
+    {_, schema} = query.from.source
+
+    %Ecto.Query.SelectExpr{expr: {:{}, [], [{{:., _, [_, foreign_key]}, _, _}, _]}} = query.select
+
+    Enum.map(schema.__schema__(:associations), fn assoc ->
+      schema.__schema__(:association, assoc)
+    end)
+
+    start_node_data =
+      Enum.map(schema.__schema__(:associations), fn assoc ->
+        schema.__schema__(:association, assoc)
+      end)
+      |> Enum.filter(fn
+        %Ecto.Association.BelongsTo{owner_key: ^foreign_key} -> true
+        _ -> false
+      end)
+      |> List.first()
+
+    %Ecto.Association.BelongsTo{queryable: parent_schema} = start_node_data
+
+    primary_key = parent_schema.__schema__(:primary_key) |> List.first()
+
+    cql_return =
+      query.select
+      |> Map.drop([:expr])
+      |> build_return()
+
+    {cql_where, where_params} = build_where(query.wheres, sources)
+
+    cql_where =
+      cql_where
+      |> String.replace(Atom.to_string(foreign_key), format_field(primary_key))
+      |> String.replace("n", "n0")
+
+    params =
+      where_params
+      |> Map.put(primary_key, where_params[foreign_key])
+      |> Map.drop([foreign_key])
+      |> Helper.manage_id(:to_db)
+
+    cql =
+      RelationshipCql.get_related(
+        parent_schema.__schema__(:source),
+        schema.__schema__(:source),
+        cql_where,
+        cql_return
+      )
+
+    {cql, params}
+  end
 
   def build(query_type, %Ecto.Query{} = query, sources, opts) do
     {source, _schema} = query.from.source
