@@ -32,10 +32,10 @@ defmodule Ecto.Adapters.Neo4j.QueryBuilder do
 
     primary_key = parent_schema.__schema__(:primary_key) |> List.first()
 
-    cql_return =
-      query.select
-      |> Map.drop([:expr])
-      |> build_return()
+    # cql_return =
+    #   query.select
+    #   |> Map.drop([:expr])
+    #   |> build_return()
 
     {cql_where, where_params} = build_where(query.wheres, sources)
 
@@ -54,8 +54,7 @@ defmodule Ecto.Adapters.Neo4j.QueryBuilder do
       RelationshipCql.get_related(
         parent_schema.__schema__(:source),
         schema.__schema__(:source),
-        cql_where,
-        cql_return
+        cql_where
       )
 
     {cql, params}

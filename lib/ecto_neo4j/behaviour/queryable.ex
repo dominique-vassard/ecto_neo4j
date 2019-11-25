@@ -78,7 +78,16 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
     end
   end
 
-  defp run_query(conn, query, cypher_query, params, _is_batch?, true, query_type, _opts) do
+  defp run_query(
+         conn,
+         %Ecto.Query{from: %{source: {_, schema}}, select: select},
+         cypher_query,
+         params,
+         _is_batch?,
+         true,
+         query_type,
+         _opts
+       ) do
     case Bolt.Sips.query(conn, cypher_query, params) do
       {:ok, results} ->
         res =
@@ -90,7 +99,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
 
             r["n"].properties
             |> Map.merge(rels)
-            |> format_results(query.select)
+            |> format_results(select, schema, params.uuid)
           end)
 
         {length(res), format_final_result(query_type, res)}
@@ -100,10 +109,19 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
     end
   end
 
-  defp run_query(conn, query, cypher_query, params, _is_batch?, _is_preload?, query_type, _opts) do
+  defp run_query(
+         conn,
+         %Ecto.Query{from: %{source: {_, schema}}, select: select},
+         cypher_query,
+         params,
+         _is_batch?,
+         _is_preload?,
+         query_type,
+         _opts
+       ) do
     case Bolt.Sips.query(conn, cypher_query, params) do
       {:ok, results} ->
-        res = Enum.map(results.results, &format_results(&1, query.select))
+        res = Enum.map(results.results, &format_results(&1, select, schema, nil))
 
         {length(res), format_final_result(query_type, res)}
 
@@ -123,20 +141,35 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
     results
   end
 
-  defp format_results(raw_results, %Ecto.Query.SelectExpr{fields: fields}) do
+  defp format_results(
+         raw_results,
+         %Ecto.Query.SelectExpr{fields: fields},
+         schema,
+         default_fk_data
+       ) do
     results = manage_id(raw_results)
+
+    fks =
+      Ecto.Adapters.Neo4j.Behaviour.Schema.get_foreign_keys(schema)
+      |> Enum.map(&Atom.to_string/1)
 
     fields
     # |> Enum.map(fn {{:., _, [{:&, [], [0]}, field_atom]}, _, _} -> field_atom end)
     |> Enum.map(&format_result_field/1)
     |> Enum.into([], fn
-      "rel_" <> _ = key -> {key, Map.get(results, key)}
-      key -> {key, Map.fetch!(results, key)}
+      "rel_" <> _ = key ->
+        {key, Map.get(results, key)}
+
+      key ->
+        case key in fks do
+          true -> {key, Map.get(results, key, default_fk_data)}
+          false -> {key, Map.fetch!(results, key)}
+        end
     end)
     |> Keyword.values()
   end
 
-  defp format_results(_, nil) do
+  defp format_results(_, nil, _, _) do
     []
   end
 

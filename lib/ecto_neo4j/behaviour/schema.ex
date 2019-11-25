@@ -117,7 +117,11 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Schema do
       iex> Ecto.Adapters.Neo4j.Behaviour.Schema.get_foreign_keys(MyApp.Post)
       [:author]
   """
-  @spec get_foreign_keys(module()) :: [atom()]
+  @spec get_foreign_keys(nil | module()) :: [atom()]
+  def get_foreign_keys(nil) do
+    []
+  end
+
   def get_foreign_keys(schema) do
     Enum.map(schema.__schema__(:associations), fn assoc ->
       schema.__schema__(:association, assoc)

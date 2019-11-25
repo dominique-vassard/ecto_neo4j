@@ -77,8 +77,6 @@ defmodule EctoNeo4j.RelationshipsTest do
     test "2 assoc ok" do
       {user, post1_data, post2_data, comment1_data, comment2_data} = fixtures()
 
-      assert {:ok, _} = Ecto.Adapters.Neo4j.insert(TestRepo, user)
-
       cql_check = """
       MATCH
         (u:User {uuid: {user_uuid}})-[rel1:WROTE {when: date({post1_when})}]->(p1:Post {uuid: {post1_uuid}}),
@@ -209,16 +207,16 @@ defmodule EctoNeo4j.RelationshipsTest do
       TestRepo.all(query)
     end
 
-    test " on multiple rel types" do
-      _user = add_data()
+    # test " on multiple rel types" do
+    #   _user = add_data()
 
-      query =
-        from u in User,
-          join: c in Comment,
-          on: c.rel_wrote == ^%{} or c.rel_read == ^%{}
+    #   query =
+    #     from u in User,
+    #       join: c in Comment,
+    #       on: c.rel_wrote == ^%{} or c.rel_read == ^%{}
 
-      TestRepo.all(query)
-    end
+    #   TestRepo.all(query)
+    # end
 
     test "with clause on rel props" do
       _user = add_data()
