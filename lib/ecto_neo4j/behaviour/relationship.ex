@@ -1,4 +1,4 @@
-defmodule EctoNeo4j.Behaviour.Relationship do
+defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
   @moduledoc """
   Manage relationship operation
   """

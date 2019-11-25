@@ -28,7 +28,14 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Schema do
     end
   end
 
-  def insert(adapter_meta, %{source: source}, fields, _on_conflict, returning, opts \\ []) do
+  def insert(
+        adapter_meta,
+        %{source: source, schema: schema},
+        fields,
+        _on_conflict,
+        returning,
+        opts \\ []
+      ) do
     returning_field =
       returning
       |> Enum.map(fn
@@ -42,9 +49,12 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Schema do
         end
       end)
 
-    # Relationships should not be saved as node properties
+    # Relationships and foreign keyw should not be saved as node properties
+    foreign_keys = get_foreign_keys(schema)
+
     insert_data =
       fields
+      |> Keyword.drop(foreign_keys)
       |> Enum.reject(fn {k, _} ->
         case Atom.to_string(k) do
           "rel" <> _rel_type -> true
@@ -97,5 +107,56 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Schema do
     data
     |> Map.new()
     |> Ecto.Adapters.Neo4j.Helper.manage_id(:to_db)
+  end
+
+  @doc """
+  Retrieve foreign keys related to the parent for the given schema.
+
+  ## Example
+
+      iex> Ecto.Adapters.Neo4j.Behaviour.Schema.get_foreign_keys(MyApp.Post)
+      [:author]
+  """
+  @spec get_foreign_keys(module()) :: [atom()]
+  def get_foreign_keys(schema) do
+    Enum.map(schema.__schema__(:associations), fn assoc ->
+      schema.__schema__(:association, assoc)
+    end)
+    |> Enum.filter(fn
+      %Ecto.Association.BelongsTo{} -> true
+      _ -> false
+    end)
+    |> Enum.map(fn data -> Map.get(data, :owner_key) end)
+  end
+
+  @doc """
+  Removes all foreign key data that can be found in the schema and its associations.
+  This is because foreign keyw are useless in Neo4j database
+  """
+  @spec remove_foreign_keys({:ok, Ecto.Schema.t()}) :: {:ok, Ecto.Schema.t()}
+  def remove_foreign_keys({:ok, %{} = data}) do
+    {:ok, do_remove_foreign_keys(data)}
+  end
+
+  defp do_remove_foreign_keys(%{__struct__: schema} = data) do
+    fks = get_foreign_keys(schema)
+
+    assocs =
+      Enum.reduce(schema.__schema__(:associations), %{}, fn assoc_key, acc ->
+        data_assoc =
+          case Map.get(data, assoc_key) do
+            %Ecto.Association.NotLoaded{} = data_assoc ->
+              data_assoc
+
+            assoc_list ->
+              Enum.map(assoc_list, fn data_assoc ->
+                do_remove_foreign_keys(data_assoc)
+              end)
+          end
+
+        Map.put(acc, assoc_key, data_assoc)
+      end)
+
+    Map.merge(Map.drop(data, fks), assocs)
   end
 end

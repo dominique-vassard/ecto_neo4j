@@ -54,7 +54,8 @@ defmodule Ecto.Adapters.Neo4j do
           Ecto.Schema.t()
   def insert(repo, data, opts \\ []) do
     repo.insert(data, opts)
-    |> EctoNeo4j.Behaviour.Relationship.process_relationships()
+    |> Ecto.Adapters.Neo4j.Behaviour.Schema.remove_foreign_keys()
+    |> Ecto.Adapters.Neo4j.Behaviour.Relationship.process_relationships()
   end
 
   defdelegate update(adapter_meta, schema_meta, fields, filters, returning, options),
