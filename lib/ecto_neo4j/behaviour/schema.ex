@@ -132,35 +132,4 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Schema do
     end)
     |> Enum.map(fn data -> Map.get(data, :owner_key) end)
   end
-
-  @doc """
-  Removes all foreign key data that can be found in the schema and its associations.
-  This is because foreign keyw are useless in Neo4j database
-  """
-  @spec remove_foreign_keys({:ok, Ecto.Schema.t()}) :: {:ok, Ecto.Schema.t()}
-  def remove_foreign_keys({:ok, %{} = data}) do
-    {:ok, do_remove_foreign_keys(data)}
-  end
-
-  defp do_remove_foreign_keys(%{__struct__: schema} = data) do
-    fks = get_foreign_keys(schema)
-
-    assocs =
-      Enum.reduce(schema.__schema__(:associations), %{}, fn assoc_key, acc ->
-        data_assoc =
-          case Map.get(data, assoc_key) do
-            %Ecto.Association.NotLoaded{} = data_assoc ->
-              data_assoc
-
-            assoc_list ->
-              Enum.map(assoc_list, fn data_assoc ->
-                do_remove_foreign_keys(data_assoc)
-              end)
-          end
-
-        Map.put(acc, assoc_key, data_assoc)
-      end)
-
-    Map.merge(Map.drop(data, fks), assocs)
-  end
 end

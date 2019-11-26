@@ -43,15 +43,7 @@ defmodule EctoNeo4j.RelationshipsTest do
         ]
       }
 
-      assert {:ok,
-              %User{
-                posts: posts
-              }} = Ecto.Adapters.Neo4j.insert(TestRepo, user)
-
-      posts
-      |> Enum.map(fn post ->
-        refute :user_uuid in Map.keys(post)
-      end)
+      assert {:ok, _} = Ecto.Adapters.Neo4j.insert(TestRepo, user)
 
       cql_check = """
       MATCH
@@ -98,16 +90,7 @@ defmodule EctoNeo4j.RelationshipsTest do
         comment2_uuid: comment2_data.uuid
       }
 
-      assert {:ok,
-              %User{
-                comments: comments,
-                posts: posts
-              }} = Ecto.Adapters.Neo4j.insert(TestRepo, user)
-
-      (posts ++ comments)
-      |> Enum.map(fn post ->
-        refute :user_uuid in Map.keys(post)
-      end)
+      assert {:ok, _} = Ecto.Adapters.Neo4j.insert(TestRepo, user)
 
       assert %Bolt.Sips.Response{results: [%{"nb_rel" => 5}]} =
                Ecto.Adapters.Neo4j.query!(cql_check, params)
