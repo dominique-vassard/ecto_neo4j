@@ -2,6 +2,7 @@ defmodule Ecto.Adapters.Neo4j.QueryBuilder do
   @moduledoc false
 
   import Ecto.Query
+  alias Ecto.Adapters.Neo4j.Condition
   alias Ecto.Adapters.Neo4j.Cql.Node, as: NodeCql
   alias Ecto.Adapters.Neo4j.Cql.Relationship, as: RelationshipCql
   alias Ecto.Adapters.Neo4j.Helper
@@ -64,6 +65,13 @@ defmodule Ecto.Adapters.Neo4j.QueryBuilder do
     {source, _schema} = query.from.source
     wheres = query.wheres
 
+    #### Alternate build
+    # Ecto.Adapters.Neo4j.QueryMapper.map(query, sources)
+
+    ####################
+
+    # {cql_match, match_params} = build_match(query.from, query.joins, sources)
+
     {cql_update, update_params} = build_update(query.updates, sources)
 
     {cql_where, where_params} = build_where(wheres, sources)
@@ -99,18 +107,22 @@ defmodule Ecto.Adapters.Neo4j.QueryBuilder do
     build(query_type, query, sources, opts)
   end
 
+  # DONE
   defp build_distinct(%Ecto.Query.QueryExpr{}) do
     "DISTINCT "
   end
 
+  # DONE
   defp build_distinct(_) do
     ""
   end
 
+  # DONE
   defp build_return(%{fields: []}) do
     "n"
   end
 
+  # DONE
   defp build_return(%{expr: {:&, [], [0]}, fields: select_fields}) do
     build_return_fields(select_fields)
   end
@@ -122,12 +134,28 @@ defmodule Ecto.Adapters.Neo4j.QueryBuilder do
     end
   end
 
+  # DONE
   defp build_return(%{expr: select_fields}) do
     build_return_fields(select_fields)
   end
 
+  # DONE
   defp build_return(_) do
     "n"
+  end
+
+  defp build_match(%{source: {_source_label, _}}, joins, sources) do
+    Enum.map(joins, &build_join(&1, sources))
+    {"", %{}}
+  end
+
+  defp build_join(%Ecto.Query.JoinExpr{source: {join_label, _}, on: on}, sources) do
+    # build_where(on, sources)
+    # |> IO.inspect(label: "ON #{join_label}")
+
+    build_conditions(on, sources)
+    |> IO.inspect(label: "CONDITIONS vvvvvvvvvvvvvvvvvvvvvvvvvvvv\n")
+    |> Condition.to_relationship_clauses()
   end
 
   defp build_return_fields(%Ecto.Query.Tagged{value: field}) do
@@ -198,6 +226,85 @@ defmodule Ecto.Adapters.Neo4j.QueryBuilder do
     ""
   end
 
+  defp build_conditions([%{expr: expression}], sources) do
+    do_build_condition(expression, sources)
+  end
+
+  defp build_conditions(%{} = wheres, sources) do
+    build_conditions([wheres], sources)
+  end
+
+  defp do_build_condition(
+         {operator, _,
+          [{{:., _, [{:&, _, [node_idx]}, field]}, [], []}, {:^, _, [sources_index]}]},
+         sources
+       ) do
+    %Condition{
+      source: node_idx,
+      field: field,
+      operator: operator,
+      value: Enum.at(sources, sources_index),
+      conditions: []
+    }
+  end
+
+  defp do_build_condition(
+         {operator, _,
+          [{{:., _, [{:&, _, [node_idx]}, field]}, [], []}, {:^, _, [s_index, s_length]}]},
+         sources
+       ) do
+    %Condition{
+      source: node_idx,
+      field: field,
+      operator: operator,
+      value: Enum.slice(sources, s_index, s_length),
+      conditions: []
+    }
+  end
+
+  defp do_build_condition(
+         {operator, _, [{{:., _, [{:&, _, [node_idx]}, field]}, [], []}, value]},
+         _sources
+       ) do
+    %Condition{
+      source: node_idx,
+      field: field,
+      operator: operator,
+      value: value,
+      conditions: []
+    }
+  end
+
+  defp do_build_condition(
+         {operator, _, [{{:., _, [{:&, _, [node_idx]}, field]}, [], []}]},
+         _sources
+       ) do
+    %Condition{
+      source: node_idx,
+      field: field,
+      operator: operator,
+      value: :no_value,
+      conditions: []
+    }
+  end
+
+  defp do_build_condition({operator, _, [arg]}, sources) do
+    %Condition{
+      operator: operator,
+      conditions: do_build_condition(arg, sources)
+    }
+  end
+
+  defp do_build_condition({operator, _, [arg1, arg2]}, sources) do
+    %Condition{
+      operator: operator,
+      conditions: [
+        do_build_condition(arg1, sources),
+        do_build_condition(arg2, sources)
+      ]
+    }
+  end
+
   defp build_where([%Ecto.Query.BooleanExpr{expr: expression, params: ecto_params}], sources) do
     {cql_where, unbound_params, _} = do_build_where(expression, sources)
 
@@ -250,6 +357,7 @@ defmodule Ecto.Adapters.Neo4j.QueryBuilder do
 
   defp do_build_where(expression, sources, inc \\ 0)
 
+  # TODO
   defp do_build_where(
          {operator, _, [_, %Ecto.Query.Tagged{type: {_, field}, value: value}]},
          _sources,
@@ -265,6 +373,7 @@ defmodule Ecto.Adapters.Neo4j.QueryBuilder do
     {cql, params, inc}
   end
 
+  # DONE
   defp do_build_where(
          {operator, _, [{{:., _, [{:&, _, _}, field]}, [], []}, {:^, _, [sources_index]}]},
          sources,
@@ -279,6 +388,7 @@ defmodule Ecto.Adapters.Neo4j.QueryBuilder do
     {cql, params, inc}
   end
 
+  # TODO
   defp do_build_where(
          {operator, _,
           [{{:., _, [{:&, _, _}, field]}, [], []}, %Ecto.Query.Tagged{value: {:^, _, [0]}}]},
@@ -294,6 +404,7 @@ defmodule Ecto.Adapters.Neo4j.QueryBuilder do
     {cql, params, inc}
   end
 
+  # DONE
   defp do_build_where(
          {operator, _, [{{:., _, [{:&, _, _}, field]}, [], []}, {:^, _, [s_index, s_length]}]},
          sources,
@@ -308,6 +419,7 @@ defmodule Ecto.Adapters.Neo4j.QueryBuilder do
     {cql, params, inc}
   end
 
+  # DONE
   defp do_build_where(
          {operator, _, [{{:., _, [{:&, _, _}, field]}, [], []}, value]},
          _sources,

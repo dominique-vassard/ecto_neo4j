@@ -1,6 +1,6 @@
 defmodule EctoNeo4j.RelationshipsTest do
   use ExUnit.Case, async: false
-  @moduletag :supported
+  # @moduletag :supported
 
   import Ecto.Query
 
@@ -212,6 +212,49 @@ defmodule EctoNeo4j.RelationshipsTest do
           on: p.rel_wrote == ^rel_data
 
       TestRepo.all(query)
+    end
+
+    test "with clause on a non-existent relationship" do
+    end
+
+    test "most complex join with simple return" do
+      add_data()
+
+      rel_data = %{when: ~D[2018-02-01]}
+      empy_rel = %{}
+      uuid = "zefzef-frzegz"
+
+      query =
+        from u in User,
+          join: p in Post,
+          on: p.rel_wrote == ^rel_data and p.rel_read == ^%{},
+          join: c in Comment,
+          on: c.rel_wrote == ^%{},
+          where: u.uuid == ^"12903da6-5d46-417b-9cab-bd82766c868b"
+
+      TestRepo.all(query)
+      |> IO.inspect(label: "QUERY RESULT ----------------------> \n")
+    end
+
+    test "most complex join with complex return" do
+      add_data()
+
+      rel_data = %{when: ~D[2018-01-01]}
+      empy_rel = %{}
+      uuid = "zefzef-frzegz"
+
+      query =
+        from u in User,
+          join: p in Post,
+          on:
+            p.rel_wrote == ^rel_data and is_nil(p.rel_read) and p.rel_wrote == ^%{} and
+              p.rel_read == ^%{},
+          join: c in Comment,
+          on: c.rel_wrote == ^%{},
+          where: u.uuid == ^"12903da6-5d46-417b-9cab-bd82766c868b"
+
+      TestRepo.all(query)
+      # |> IO.inspect(label: "QUERY RESULT ----------------------> \n")
     end
   end
 
