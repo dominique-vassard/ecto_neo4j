@@ -81,7 +81,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Schema do
     bolt_role = Keyword.get(opts, :bolt_role, default_role)
     conn = Ecto.Adapters.Neo4j.Behaviour.Queryable.get_conn(pool, bolt_role)
 
-    case Bolt.Sips.query(conn, cql, params) do
+    case Ecto.Adapters.Neo4j.Behaviour.Queryable.query(cql, params, conn: conn) do
       {:ok, %Bolt.Sips.Response{results: [%{"n" => _record}]}} ->
         {:ok, []}
 

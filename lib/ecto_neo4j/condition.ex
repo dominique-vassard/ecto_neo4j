@@ -1,148 +1,147 @@
 defmodule Ecto.Adapters.Neo4j.Condition do
-  @fields [:source, :field, :operator, :value, :conditions]
+  @fields [:source, :field, :operator, :value, :conditions, :join_operator]
   # @enforce_keys @fields
   defstruct @fields
+
+  alias Ecto.Adapters.Neo4j.Condition
 
   @type t :: %__MODULE__{
           source: String.t(),
           field: atom(),
           operator: atom(),
           value: any(),
-          conditions: [Ecto.Adapters.Neo4j.Condition.t()]
+          conditions: [Condition.t()],
+          join_operator: :and | :or
         }
-
-  alias Ecto.Adapters.Neo4j.Condition
 
   @valid_operators [:and, :or, :not, :==, :in, :>, :>=, :<, :<, :min, :max, :count, :sum, :avg]
 
   def to_relationship_clauses(conditions) do
     conditions =
-      to_relationship_clause(conditions, %{match: [], where: [], params: %{}})
-      |> IO.inspect(label: "FORMATED")
+      to_relationship_clause(conditions, %{match: [], where: nil, params: %{}})
       |> flatten_clauses()
-      |> IO.inspect(label: "FINAL")
 
     conditions
   end
 
-  def to_relationship_format(condition, clauses \\ %{match: [], where: [], params: %{}})
+  # def to_relationship_format(condition, clauses \\ %{match: [], where: nil, params: %{}})
 
-  def to_relationship_format(%{operator: :or}, _) do
-    raise "OR is not supported in joins!"
+  # def to_relationship_format(%{operator: :or}, _) do
+  #   raise "OR is not supported in joins!"
+  # end
+
+  # def to_relationship_format(
+  #       %{
+  #         source: end_index,
+  #         field: field,
+  #         operator: :is_nil
+  #       },
+  #       clauses
+  #     )
+  #     when not is_nil(field) do
+  #   relationship = %Ecto.Adapters.Neo4j.Query.RelationshipExpr{
+  #     start_index: "n_0",
+  #     end_index: "n_" <> Integer.to_string(end_index),
+  #     type: format_relationship(field)
+  #   }
+
+  #   condition = %Condition{
+  #     operator: :not,
+  #     field: relationship
+  #   }
+
+  #   new_condition =
+  #     case clauses.where do
+  #       %Condition{} = prev_condition ->
+  #         %Condition{
+  #           operator: :and,
+  #           conditions: [prev_condition, condition]
+  #         }
+
+  #       _ ->
+  #         condition
+  #     end
+
+  #   %{clauses | where: new_condition}
+  # end
+
+  # def to_relationship_format(
+  #       %{source: end_index, field: field, operator: :==, value: value},
+  #       clauses
+  #     )
+  #     when not is_nil(field) do
+  #   rel_variable = (field |> Atom.to_string()) <> inspect(end_index)
+
+  #   relationship = %Ecto.Adapters.Neo4j.Query.RelationshipExpr{
+  #     variable: rel_variable,
+  #     start_index: "n_0",
+  #     end_index: "n_" <> Integer.to_string(end_index),
+  #     type: format_relationship(field)
+  #   }
+
+  #   wheres =
+  #     value
+  #     |> Enum.map(fn {prop, value} ->
+  #       key = rel_variable <> "_" <> Atom.to_string(prop)
+
+  #       {%Condition{
+  #          source: rel_variable,
+  #          field: prop,
+  #          operator: :==,
+  #          value: key
+  #        }, Map.put(%{}, String.to_atom(key), value)}
+  #     end)
+
+  #   new_clauses = %{
+  #     clauses
+  #     | match: clauses.match ++ [relationship]
+  #   }
+
+  #   format_relationship_wheres(wheres, new_clauses)
+  # end
+
+  # def to_relationship_format(
+  #       %{operator: operator, conditions: [condition1, condition2]},
+  #       clauses
+  #     ) do
+  #   c1 = to_relationship_format(condition1, %{match: [], where: nil, params: %{}})
+
+  #   c2 = to_relationship_format(condition2, %{match: [], where: nil, params: %{}})
+
+  #   condition =
+  #     join_conditions(c1.where, c2.where, operator)
+  #     |> join_conditions(clauses.where)
+
+  #   %{
+  #     clauses
+  #     | match: clauses.match ++ c1.match ++ c2.match,
+  #       where: condition,
+  #       params: clauses.params |> Map.merge(c1.params) |> Map.merge(c2.params)
+  #   }
+  # end
+
+  def join_conditions(condition1, condition2, operator \\ nil)
+
+  def join_conditions(nil, nil, _operator) do
+    nil
   end
 
-  def to_relationship_format(
-        %{
-          source: end_index,
-          field: field,
-          operator: :is_nil
-        },
-        clauses
-      )
-      when not is_nil(field) do
-    relationship = %Ecto.Adapters.Neo4j.Query.RelationshipExpr{
-      start_index: "n_0",
-      end_index: "n_" <> Integer.to_string(end_index),
-      type: format_relationship(field)
-    }
-
-    condition = %Condition{
-      operator: :not,
-      field: relationship
-    }
-
-    new_condition =
-      case clauses.where do
-        %Condition{} = prev_condition ->
-          %Condition{
-            operator: :and,
-            conditions: [prev_condition, condition]
-          }
-
-        _ ->
-          condition
-      end
-
-    %{clauses | where: new_condition}
-  end
-
-  def to_relationship_format(
-        %{source: end_index, field: field, operator: :==, value: value},
-        clauses
-      )
-      when not is_nil(field) do
-    rel_variable = (field |> Atom.to_string()) <> inspect(end_index)
-
-    relationship = %Ecto.Adapters.Neo4j.Query.RelationshipExpr{
-      variable: rel_variable,
-      start_index: "n_0",
-      end_index: "n_" <> Integer.to_string(end_index),
-      type: format_relationship(field)
-    }
-
-    wheres =
-      value
-      |> Enum.map(fn {prop, value} ->
-        key = rel_variable <> "_" <> Atom.to_string(prop)
-
-        {%Condition{
-           source: rel_variable,
-           field: prop,
-           operator: :==,
-           value: key
-         }, Map.put(%{}, String.to_atom(key), value)}
-      end)
-
-    new_clauses = %{
-      clauses
-      | match: clauses.match ++ [relationship]
-    }
-
-    format_relationship_wheres(wheres, new_clauses)
-  end
-
-  def to_relationship_format(
-        %{operator: operator, conditions: [condition1, condition2]},
-        clauses
-      ) do
-    c1 = to_relationship_format(condition1, %{match: [], where: [], params: %{}})
-
-    c2 = to_relationship_format(condition2, %{match: [], where: [], params: %{}})
-
-    condition =
-      join_conditions(c1.where, c2.where, operator)
-      |> join_conditions(clauses.where)
-
-    %{
-      clauses
-      | match: clauses.match ++ c1.match ++ c2.match,
-        where: condition,
-        params: clauses.params |> Map.merge(c1.params) |> Map.merge(c2.params)
-    }
-  end
-
-  defp join_conditions(condition1, condition2, operator \\ :and)
-
-  defp join_conditions([], [], _operator) do
-    []
-  end
-
-  defp join_conditions(condition1, [], _operator) do
+  def join_conditions(condition1, nil, _operator) do
     condition1
   end
 
-  defp join_conditions([], condition2, _operator) do
+  def join_conditions(nil, condition2, _operator) do
     condition2
   end
 
-  defp join_conditions(condition1, condition2, operator) do
+  def join_conditions(condition1, condition2, operator) do
     %Condition{
-      operator: operator,
+      operator: operator || condition1.join_operator || condition2.join_operator,
       conditions: [condition1, condition2]
     }
   end
 
-  def stringify_condition([]) do
+  def stringify_condition(nil) do
     ""
   end
 
@@ -153,12 +152,28 @@ defmodule Ecto.Adapters.Neo4j.Condition do
     "#{condition1} #{format_operator(operator)} #{condition2}"
   end
 
+  def stringify_condition(%Condition{operator: operator, conditions: condition})
+      when not is_nil(condition) do
+    str_cond = stringify_condition(condition)
+
+    "#{format_operator(operator)} #{str_cond}"
+  end
+
   def stringify_condition(%Condition{
         operator: operator,
         field: %Ecto.Adapters.Neo4j.Query.RelationshipExpr{} = relationship
       }) do
     %{start_index: start_variable, end_index: end_variable, type: rel_type} = relationship
     "#{format_operator(operator)} (#{start_variable})-[:#{rel_type}]->(#{end_variable})"
+  end
+
+  def stringify_condition(%Condition{
+        source: source,
+        field: field,
+        operator: operator
+      })
+      when operator == :is_nil do
+    "#{source}.#{format_field(field)} #{format_operator(operator)}"
   end
 
   def stringify_condition(%Condition{
@@ -225,11 +240,11 @@ defmodule Ecto.Adapters.Neo4j.Condition do
     # }
     # """
     c1_clauses =
-      to_relationship_clause(condition1, %{match: [], where: [], params: %{}})
+      to_relationship_clause(condition1, %{match: [], where: nil, params: %{}})
       |> flatten_clauses()
 
     c2_clauses =
-      to_relationship_clause(condition2, %{match: [], where: [], params: %{}})
+      to_relationship_clause(condition2, %{match: [], where: nil, params: %{}})
       |> flatten_clauses()
 
     match = [c1_clauses.match, c2_clauses.match]
@@ -271,34 +286,34 @@ defmodule Ecto.Adapters.Neo4j.Condition do
     }
   end
 
-  defp format_relationship_wheres([], clauses) do
-    clauses
-  end
+  # defp format_relationship_wheres([], clauses) do
+  #   clauses
+  # end
 
-  defp format_relationship_wheres(wheres, clauses) do
-    Enum.reduce(wheres, clauses, fn {where, params}, acc ->
-      n_cond =
-        case acc.where do
-          [] ->
-            where
+  # defp format_relationship_wheres(wheres, clauses) do
+  #   Enum.reduce(wheres, clauses, fn {where, params}, acc ->
+  #     n_cond =
+  #       case acc.where do
+  #         [] ->
+  #           where
 
-          condition ->
-            %Condition{
-              operator: :and,
-              conditions: [
-                condition,
-                where
-              ]
-            }
-        end
+  #         condition ->
+  #           %Condition{
+  #             operator: :and,
+  #             conditions: [
+  #               condition,
+  #               where
+  #             ]
+  #           }
+  #       end
 
-      %{
-        acc
-        | where: n_cond,
-          params: Map.merge(acc.params, params)
-      }
-    end)
-  end
+  #     %{
+  #       acc
+  #       | where: n_cond,
+  #         params: Map.merge(acc.params, params)
+  #     }
+  #   end)
+  # end
 
   defp format_operator(:==) do
     "="

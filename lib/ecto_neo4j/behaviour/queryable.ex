@@ -1,5 +1,6 @@
 defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
   alias Ecto.Adapters.Neo4j.QueryBuilder
+  alias Ecto.Adapters.Neo4j.Query
 
   @chunk_size Application.get_env(:ecto_neo4j, Ecto.Adapters.Neo4j, chunk_size: 10_000)
               |> Keyword.get(:chunk_size)
@@ -17,11 +18,11 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
   end
 
   def prepare(:delete_all, query) do
-    {:nocache, {:delete, query}}
+    {:nocache, {:delete_all, query}}
   end
 
   def prepare(:update_all, query) do
-    {:nocache, {:update, query}}
+    {:nocache, {:update_all, query}}
   end
 
   def execute(
@@ -49,7 +50,12 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
 
     conn = get_conn(pool, bolt_role)
 
-    run_query(conn, query, cypher_query, params, is_batch?, is_preload?, query_type, opts)
+    # run_query(conn, query, cypher_query, params, is_batch?, is_preload?, query_type, opts)
+
+    ##### Alternate
+    neo4j_query = Ecto.Adapters.Neo4j.QueryMapper.map(query_type, query, sources)
+
+    run_query(conn, neo4j_query, opts)
   end
 
   defp is_preload?(%Ecto.Query.SelectExpr{expr: {:{}, [], [_, {:&, [], [0]}]}, fields: [_ | _]}) do
@@ -59,6 +65,49 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
   defp is_preload?(_) do
     false
   end
+
+  #### ALTERNATE
+  defp run_query(conn, %Query{} = query, _opts) do
+    {cql, params} = Query.to_string(query)
+
+    has_result? = not Kernel.match?(%Query.ReturnExpr{fields: [nil]}, query.return)
+
+    case query(cql, params, conn: conn) do
+      {:ok, %Bolt.Sips.Response{} = response} ->
+        format_response(query.operation, response, has_result?)
+
+      {:error, error} ->
+        raise Bolt.Sips.Exception, error.message
+    end
+
+    # end
+  end
+
+  defp format_response(:delete_all, response, _) do
+    nb_results =
+      case response.stats do
+        [] -> 0
+        stats -> stats["nodes-deleted"]
+      end
+
+    {nb_results, nil}
+  end
+
+  defp format_response(operation, %{records: results}, true)
+       when operation in [:update, :update_all] do
+    {length(results), results}
+  end
+
+  defp format_response(operation, %{records: results}, false)
+       when operation in [:update, :update_all] do
+    {length(results), nil}
+  end
+
+  defp format_response(_, %{records: results}, _) do
+    {length(results), results}
+  end
+
+  #### END ALTERNATE
 
   defp run_query(_, _, query, params, true, _is_preload?, query_type, opts)
        when query_type in [:update, :delete] do
@@ -88,7 +137,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
          query_type,
          _opts
        ) do
-    case Bolt.Sips.query(conn, cypher_query, params) do
+    case query(cypher_query, params, conn: conn) do
       {:ok, results} ->
         res =
           Enum.map(results.results, fn r ->
@@ -119,7 +168,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
          query_type,
          _opts
        ) do
-    case Bolt.Sips.query(conn, cypher_query, params) do
+    case query(cypher_query, params, conn: conn) do
       {:ok, results} ->
         res = Enum.map(results.results, &format_results(&1, select, schema, nil))
 
@@ -224,6 +273,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
   """
   def query(cql, params \\ %{}, opts \\ []) do
     conn = Keyword.get(opts, :conn, Bolt.Sips.conn())
+
     Bolt.Sips.query(conn, cql, params)
   end
 
@@ -232,6 +282,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
   """
   def query!(cql, params \\ %{}, opts \\ []) do
     conn = Keyword.get(opts, :conn, Bolt.Sips.conn())
+
     Bolt.Sips.query!(conn, cql, params)
   end
 

@@ -66,7 +66,7 @@ defmodule Ecto.Adapters.Neo4j.QueryBuilder do
     wheres = query.wheres
 
     #### Alternate build
-    # Ecto.Adapters.Neo4j.QueryMapper.map(query, sources)
+    Ecto.Adapters.Neo4j.QueryMapper.map(query_type, query, sources)
 
     ####################
 
@@ -127,6 +127,7 @@ defmodule Ecto.Adapters.Neo4j.QueryBuilder do
     build_return_fields(select_fields)
   end
 
+  # DONE
   defp build_return(%{expr: {type, [], select_fields}, fields: alt_select_fields}) do
     case type in [:%{}, :{}] do
       true -> build_return_fields(select_fields)
@@ -150,11 +151,7 @@ defmodule Ecto.Adapters.Neo4j.QueryBuilder do
   end
 
   defp build_join(%Ecto.Query.JoinExpr{source: {join_label, _}, on: on}, sources) do
-    # build_where(on, sources)
-    # |> IO.inspect(label: "ON #{join_label}")
-
     build_conditions(on, sources)
-    |> IO.inspect(label: "CONDITIONS vvvvvvvvvvvvvvvvvvvvvvvvvvvv\n")
     |> Condition.to_relationship_clauses()
   end
 

@@ -34,4 +34,16 @@ defmodule Ecto.Adapters.Neo4j.Helper do
   end
 
   def manage_id(data, :to_db), do: data
+
+  def translate_field(:id, :to_db) do
+    :nodeId
+  end
+
+  def translate_field(field, :to_db), do: field
+
+  def translate_field(:nodeId, :from_db) do
+    :id
+  end
+
+  def translate_field(field, :from_db), do: field
 end
