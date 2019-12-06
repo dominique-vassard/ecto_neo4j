@@ -11,12 +11,13 @@ defmodule Ecto.Adapters.Neo4j.Query do
   end
 
   defmodule NodeExpr do
-    defstruct [:index, :variable, :labels]
+    defstruct [:index, :variable, :labels, :alias]
 
     @type t :: %__MODULE__{
             index: integer(),
             variable: String.t(),
-            labels: [String.t()]
+            labels: [String.t()],
+            alias: nil | String.t()
           }
   end
 
@@ -61,11 +62,13 @@ defmodule Ecto.Adapters.Neo4j.Query do
   end
 
   defmodule AggregateExpr do
-    defstruct [:operator, :field, :is_distinct?]
+    defstruct [:alias, :operator, :field, :entity, :is_distinct?]
 
     @type t :: %__MODULE__{
+            alias: String.t(),
             operator: atom(),
             field: FieldExpr.t(),
+            entity: NodeExpr.t() | RelationshipExpr.t(),
             is_distinct?: boolean()
           }
   end
@@ -80,34 +83,92 @@ defmodule Ecto.Adapters.Neo4j.Query do
           }
   end
 
-  defstruct [:operation, :match, :where, :return, :set, :params, :order_by, :skip, :limit]
+  defmodule BatchExpr do
+    defstruct [:with, :skip, :limit]
+
+    @type t :: %__MODULE__{
+            with: NodeExpr.t(),
+            skip: nil | integer | atom,
+            limit: nil | integer | atom
+          }
+  end
+
+  defmodule Batch do
+    defstruct [:is_batch?, :type, :chunk_size, :__expr]
+
+    @type t :: %__MODULE__{
+            is_batch?: boolean,
+            type: :basic | :with_skip,
+            chunk_size: integer(),
+            __expr: nil | BatchExpr.t()
+          }
+  end
+
+  defstruct [
+    :operation,
+    :match,
+    :where,
+    :return,
+    :set,
+    :params,
+    :order_by,
+    :skip,
+    :limit,
+    :batch
+  ]
 
   @type t :: %__MODULE__{
           operation: atom(),
           match: [String.t()],
-          where: Ecto.Adapters.Neo4j.Condition.t(),
+          where: nil | Ecto.Adapters.Neo4j.Condition.t(),
           set: [SetExpr.t()],
-          return: ReturnExpr.t(),
+          return: nil | ReturnExpr.t(),
           params: map(),
           order_by: [OrderExpr.t()],
-          skip: nil | integer(),
-          limit: nil | integer()
+          skip: nil | integer() | atom(),
+          limit: nil | integer() | atom(),
+          batch: Batch.t()
         }
 
   alias Ecto.Adapters.Neo4j.Query
 
+  @chunk_size Application.get_env(:ecto_neo4j, Ecto.Adapters.Neo4j, chunk_size: 10_000)
+              |> Keyword.get(:chunk_size)
+  @is_batch? Application.get_env(:ecto_neo4j, Ecto.Adapters.Neo4j, batch: false)
+             |> Keyword.get(:batch)
+
+  @spec new(atom()) :: Query.t()
   def new(operation \\ :match) do
     %Query{
       operation: operation,
       match: [],
       where: nil,
-      return: [],
       set: [],
+      return: nil,
       params: %{},
       order_by: [],
       skip: nil,
-      limit: nil
+      limit: nil,
+      batch: %Batch{
+        is_batch?: @is_batch?,
+        type: :basic,
+        chunk_size: @chunk_size
+      }
     }
+  end
+
+  @spec batch(Query.t(), Batch.t()) :: Query.t()
+  def batch(query, %Batch{} = batch_opt) do
+    batch =
+      case query.operation in [:update, :update_all] do
+        true ->
+          %{batch_opt | type: :with_skip}
+
+        _ ->
+          %{batch_opt | type: :basic}
+      end
+
+    %{query | batch: Map.merge(query.batch, batch)}
   end
 
   def match(query, match) when is_list(match) do
@@ -167,16 +228,63 @@ defmodule Ecto.Adapters.Neo4j.Query do
     %{query | limit: limit}
   end
 
-  @spec skip(Query.t(), nil | integer()) :: Query.t()
+  @spec skip(Query.t(), nil | integer() | atom()) :: Query.t()
   def skip(query, nil) do
     query
   end
 
-  def skip(query, limit) do
-    %{query | limit: limit}
+  def skip(query, skip) do
+    %{query | skip: skip}
   end
 
-  def to_string(query) do
+  @spec batchify_query(Query.t()) :: Query.t()
+  def batchify_query(%Query{batch: %{is_batch?: true} = batch, operation: operation} = query)
+      when operation in [:update, :update_all, :delete, :delete_all] do
+    node = List.first(query.match)
+
+    return = %ReturnExpr{
+      fields: [
+        %AggregateExpr{
+          alias: "nb_touched_nodes",
+          operator: :count,
+          entity: node
+        }
+      ]
+    }
+
+    batch_with = %ReturnExpr{
+      fields: [
+        Map.put(node, :alias, node.variable)
+      ]
+    }
+
+    batch_skip =
+      if operation in [:update, :update_all] do
+        :skip
+      end
+
+    batch_expr = %BatchExpr{
+      with: batch_with,
+      skip: batch_skip,
+      limit: :limit
+    }
+
+    query
+    |> Query.return(return)
+    |> Query.skip(nil)
+    |> Query.limit(nil)
+    |> Query.order_by([])
+    |> Query.params(%{limit: batch.chunk_size})
+    |> Query.batch(%{batch | __expr: batch_expr})
+  end
+
+  def batchify_query(query) do
+    query
+  end
+
+  def to_string(bare_query) do
+    query = batchify_query(bare_query)
+
     match =
       query.match
       |> MapSet.new()
@@ -187,6 +295,18 @@ defmodule Ecto.Adapters.Neo4j.Query do
     return = stringify_return(query.return)
     order_by = stringify_order_by(query.order_by)
     limit = stringify_limit(query.limit)
+    skip = stringify_skip(query.skip)
+    cql_batch = stringify_batch(query.batch)
+
+    delete =
+      if query.operation == :delete_all do
+        query.match
+        |> MapSet.new()
+        |> MapSet.to_list()
+        |> stringify_delete()
+      else
+        ""
+      end
 
     cql_set =
       if length(query.set) > 0 do
@@ -218,9 +338,9 @@ defmodule Ecto.Adapters.Neo4j.Query do
       end
 
     cql_skip =
-      if query.skip do
+      if String.length(skip) > 0 do
         """
-        SKIP #{stringify_skip(query.skip)}
+        SKIP #{skip}
         """
       end
 
@@ -232,16 +352,10 @@ defmodule Ecto.Adapters.Neo4j.Query do
       end
 
     cql_delete =
-      if query.operation == :delete_all do
-        deletes =
-          query.match
-          |> MapSet.new()
-          |> MapSet.to_list()
-          |> stringify_delete()
-
+      if String.length(delete) > 0 do
         """
         DETACH DELETE
-          #{deletes}
+          #{delete}
         """
       end
 
@@ -249,6 +363,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
     MATCH
       #{match}
     #{cql_where}
+    #{cql_batch}
     #{cql_delete}
     #{cql_set}
     RETURN
@@ -279,6 +394,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
     "(#{start_variable})-[#{variable}:#{rel_type}]->(#{end_variable})"
   end
 
+  @spec stringify_delete([]) :: String.t()
   def stringify_delete(matches) do
     Enum.map(matches, fn %{variable: variable} ->
       variable
@@ -286,10 +402,12 @@ defmodule Ecto.Adapters.Neo4j.Query do
     |> Enum.join(", ")
   end
 
+  @spec stringify_where(nil | Ecto.Adapters.Neo4j.Condition.t()) :: String.t()
   def stringify_where(condition) do
     Ecto.Adapters.Neo4j.Condition.stringify_condition(condition)
   end
 
+  @spec stringify_return(ReturnExpr.t()) :: String.t()
   def stringify_return(%ReturnExpr{fields: fields, is_distinct?: is_distinct?}) do
     distinct =
       if is_distinct? do
@@ -301,16 +419,11 @@ defmodule Ecto.Adapters.Neo4j.Query do
         nil ->
           "NULL"
 
-        %NodeExpr{variable: variable} ->
-          variable
+        %NodeExpr{} = node ->
+          stringify_node(node)
 
-        %AggregateExpr{operator: operator, field: field, is_distinct?: is_distinct?} ->
-          cql_distinct =
-            if is_distinct? do
-              "DISTINCT "
-            end
-
-          "#{format_operator(operator)}(#{cql_distinct}#{stringify_field(field)})"
+        %AggregateExpr{} = aggregate ->
+          stringify_aggregate(aggregate)
 
         %FieldExpr{} = field ->
           stringify_field(field)
@@ -320,6 +433,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
     "#{distinct}#{fields_cql}"
   end
 
+  @spec stringify_set(SetExpr.t()) :: String.t()
   def stringify_set(%SetExpr{field: field, increment: increment}) when not is_nil(increment) do
     "#{stringify_field(field)} = #{stringify_field(field)} + {#{increment}}"
   end
@@ -328,6 +442,27 @@ defmodule Ecto.Adapters.Neo4j.Query do
     "#{stringify_field(field)} = {#{value}}"
   end
 
+  def stringify_batch(%Batch{is_batch?: true, __expr: expression}) do
+    skip = stringify_skip(expression.skip)
+
+    cql_skip =
+      if String.length(skip) > 0 do
+        "SKIP #{skip}"
+      end
+
+    """
+    WITH
+      #{stringify_return(expression.with)}
+    #{cql_skip}
+    LIMIT #{stringify_limit(expression.limit)}
+    """
+  end
+
+  def stringify_batch(_) do
+    ""
+  end
+
+  @spec stringify_order_by([]) :: String.t()
   def stringify_order_by(order_bys) when is_list(order_bys) do
     Enum.map(order_bys, fn %OrderExpr{order: order, field: field} ->
       stringify_field(field) <> " " <> format_operator(order)
@@ -335,6 +470,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
     |> Enum.join(", ")
   end
 
+  @spec stringify_limit(nil | integer | atom) :: String.t()
   def stringify_limit(limit) when is_integer(limit) do
     Integer.to_string(limit)
   end
@@ -343,6 +479,11 @@ defmodule Ecto.Adapters.Neo4j.Query do
     ""
   end
 
+  def stringify_limit(limit) when is_atom(limit) do
+    "{#{Atom.to_string(limit)}}"
+  end
+
+  @spec stringify_skip(nil | integer | atom()) :: String.t()
   def stringify_skip(skip) when is_integer(skip) do
     Integer.to_string(skip)
   end
@@ -351,6 +492,11 @@ defmodule Ecto.Adapters.Neo4j.Query do
     ""
   end
 
+  def stringify_skip(skip) when is_atom(skip) do
+    "{#{Atom.to_string(skip)}}"
+  end
+
+  @spec stringify_field(FieldExpr.t()) :: String.t()
   def stringify_field(%FieldExpr{variable: variable, name: field, alias: alias}) do
     field_name = Atom.to_string(field)
 
@@ -358,6 +504,41 @@ defmodule Ecto.Adapters.Neo4j.Query do
       nil -> "#{variable}.#{field_name}"
       field_alias -> "#{variable}.#{field_name} AS #{field_alias}"
     end
+  end
+
+  def stringify_node(%NodeExpr{alias: node_alias, variable: variable})
+      when not is_nil(node_alias) do
+    "#{variable} AS #{node_alias}"
+  end
+
+  def stringify_node(%NodeExpr{variable: variable}) do
+    variable
+  end
+
+  @spec stringify_aggregate(AggregateExpr.t()) :: String.t()
+  def stringify_aggregate(%AggregateExpr{field: field} = aggregate) when not is_nil(field) do
+    do_stringify_aggregate(aggregate, stringify_field(field))
+  end
+
+  def stringify_aggregate(%AggregateExpr{entity: %{variable: variable}} = aggregate) do
+    do_stringify_aggregate(aggregate, variable)
+  end
+
+  defp do_stringify_aggregate(
+         %AggregateExpr{alias: agg_alias, operator: operator, is_distinct?: is_distinct?},
+         target
+       ) do
+    cql_distinct =
+      if is_distinct? do
+        "DISTINCT "
+      end
+
+    cql_alias =
+      unless is_nil(agg_alias) do
+        " AS #{agg_alias}"
+      end
+
+    "#{format_operator(operator)}(#{cql_distinct}#{target})#{cql_alias}"
   end
 
   defp format_operator(operator) do

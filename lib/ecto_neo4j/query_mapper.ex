@@ -1,10 +1,14 @@
 defmodule Ecto.Adapters.Neo4j.QueryMapper do
   alias Ecto.Adapters.Neo4j.{Query, Condition, Helper}
 
-  @spec map(atom(), Ecto.Query.t(), []) :: Ecto.Adapters.Neo4j.Query.t()
-  def map(operation, %Ecto.Query{} = query, unbound_params) do
+  @spec map(atom(), Ecto.Query.t(), [], Keyword.t()) :: Ecto.Adapters.Neo4j.Query.t()
+  def map(operation, %Ecto.Query{} = query, unbound_params, opts) do
     neo4j_query =
       Query.new(operation)
+      |> Query.batch(%Query.Batch{
+        is_batch?: opts[:batch],
+        chunk_size: opts[:chunk_size]
+      })
       |> Query.match(map_from(query.sources))
 
     # Manage JOIN
@@ -212,7 +216,7 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
 
   ######################################################################
   defp build_return_fields(%Ecto.Query.Tagged{value: field}) do
-    format_field(field)
+    [format_field(field)]
   end
 
   defp build_return_fields(fields) do

@@ -53,20 +53,23 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
     # run_query(conn, query, cypher_query, params, is_batch?, is_preload?, query_type, opts)
 
     ##### Alternate
-    neo4j_query = Ecto.Adapters.Neo4j.QueryMapper.map(query_type, query, sources)
+    neo4j_query = Ecto.Adapters.Neo4j.QueryMapper.map(query_type, query, sources, opts)
 
     run_query(conn, neo4j_query, opts)
   end
 
-  defp is_preload?(%Ecto.Query.SelectExpr{expr: {:{}, [], [_, {:&, [], [0]}]}, fields: [_ | _]}) do
-    true
-  end
-
-  defp is_preload?(_) do
-    false
-  end
-
   #### ALTERNATE
+  defp run_query(_, %Query{operation: operation, batch: %{is_batch?: true}} = query, opts)
+       when operation in [:update, :update_all, :delete, :delete_all] do
+    case run_batch_query(query) do
+      {:ok, []} ->
+        nil
+
+      {:error, error} ->
+        raise Bolt.Sips.Exception, error.message
+    end
+  end
+
   defp run_query(conn, %Query{} = query, _opts) do
     {cql, params} = Query.to_string(query)
 
@@ -81,6 +84,49 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
     end
 
     # end
+  end
+
+  def run_batch_query!(query) do
+    case run_batch_query(query) do
+      {:ok, []} -> {:ok, []}
+      {:error, error} -> raise Bolt.Sips.Exception, error.message
+    end
+  end
+
+  def run_batch_query(%Query{batch: %{type: :basic}} = query) do
+    {cql, params} = Query.to_string(query)
+
+    do_run_batch_query(cql, params, -1)
+  end
+
+  def run_batch_query(%Query{batch: %{type: :with_skip}} = query) do
+    {cql, params} = Query.to_string(query)
+
+    do_run_batch_query_with_skip(cql, params, 0, 1)
+  end
+
+  defp do_run_batch_query(_, _, 0) do
+    {:ok, []}
+  end
+
+  defp do_run_batch_query(cql, params, _) do
+    case query(cql, params) do
+      {:ok, %Bolt.Sips.Response{results: [%{"nb_touched_nodes" => nb_nodes}]}} ->
+        do_run_batch_query(cql, params, nb_nodes)
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp do_run_batch_query_with_skip(_, _, _, 0) do
+    {:ok, []}
+  end
+
+  defp do_run_batch_query_with_skip(cql, params, skip, _) do
+    params = Map.put(params, :skip, skip)
+    %Bolt.Sips.Response{results: [%{"nb_touched_nodes" => nb_nodes}]} = query!(cql, params)
+    do_run_batch_query_with_skip(cql, params, skip + params.limit, nb_nodes)
   end
 
   defp format_response(:delete_all, response, _) do
@@ -109,23 +155,31 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
 
   #### END ALTERNATE
 
-  defp run_query(_, _, query, params, true, _is_preload?, query_type, opts)
-       when query_type in [:update, :delete] do
-    batch_type =
-      if query_type == :update do
-        :with_skip
-      else
-        :basic
-      end
-
-    case batch_query(query, params, batch_type, opts) do
-      {:ok, []} ->
-        nil
-
-      {:error, error} ->
-        raise Bolt.Sips.Exception, error.message
-    end
+  defp is_preload?(%Ecto.Query.SelectExpr{expr: {:{}, [], [_, {:&, [], [0]}]}, fields: [_ | _]}) do
+    true
   end
+
+  defp is_preload?(_) do
+    false
+  end
+
+  # defp run_query(_, _, query, params, true, _is_preload?, query_type, opts)
+  #      when query_type in [:update, :delete] do
+  #   batch_type =
+  #     if query_type == :update do
+  #       :with_skip
+  #     else
+  #       :basic
+  #     end
+
+  #   case batch_query(query, params, batch_type, opts) do
+  #     {:ok, []} ->
+  #       nil
+
+  #     {:error, error} ->
+  #       raise Bolt.Sips.Exception, error.message
+  #   end
+  # end
 
   defp run_query(
          conn,

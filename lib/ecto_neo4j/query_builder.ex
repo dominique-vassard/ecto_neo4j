@@ -66,7 +66,7 @@ defmodule Ecto.Adapters.Neo4j.QueryBuilder do
     wheres = query.wheres
 
     #### Alternate build
-    Ecto.Adapters.Neo4j.QueryMapper.map(query_type, query, sources)
+    # Ecto.Adapters.Neo4j.QueryMapper.map(query_type, query, sources)
 
     ####################
 
