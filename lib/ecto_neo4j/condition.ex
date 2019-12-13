@@ -10,7 +10,7 @@ defmodule Ecto.Adapters.Neo4j.Condition do
           field: atom(),
           operator: atom(),
           value: any(),
-          conditions: [Condition.t()],
+          conditions: nil | [Condition.t()],
           join_operator: :and | :or
         }
 
@@ -120,6 +120,7 @@ defmodule Ecto.Adapters.Neo4j.Condition do
   #   }
   # end
 
+  @spec join_conditions(nil | Condition.t(), nil | Condition.t(), atom) :: nil | Condition.t()
   def join_conditions(condition1, condition2, operator \\ nil)
 
   def join_conditions(nil, nil, _operator) do
@@ -141,6 +142,7 @@ defmodule Ecto.Adapters.Neo4j.Condition do
     }
   end
 
+  @spec stringify_condition(nil | Condition.t()) :: String.t()
   def stringify_condition(nil) do
     ""
   end
@@ -149,14 +151,14 @@ defmodule Ecto.Adapters.Neo4j.Condition do
     condition1 = stringify_condition(c1)
     condition2 = stringify_condition(c2)
 
-    "#{condition1} #{format_operator(operator)} #{condition2}"
+    "#{condition1} #{stringify_operator(operator)} #{condition2}"
   end
 
   def stringify_condition(%Condition{operator: operator, conditions: condition})
       when not is_nil(condition) do
     str_cond = stringify_condition(condition)
 
-    "#{format_operator(operator)} #{str_cond}"
+    "#{stringify_operator(operator)} #{str_cond}"
   end
 
   def stringify_condition(%Condition{
@@ -164,7 +166,7 @@ defmodule Ecto.Adapters.Neo4j.Condition do
         field: %Ecto.Adapters.Neo4j.Query.RelationshipExpr{} = relationship
       }) do
     %{start_index: start_variable, end_index: end_variable, type: rel_type} = relationship
-    "#{format_operator(operator)} (#{start_variable})-[:#{rel_type}]->(#{end_variable})"
+    "#{stringify_operator(operator)} (#{start_variable})-[:#{rel_type}]->(#{end_variable})"
   end
 
   def stringify_condition(%Condition{
@@ -173,7 +175,7 @@ defmodule Ecto.Adapters.Neo4j.Condition do
         operator: operator
       })
       when operator == :is_nil do
-    "#{source}.#{format_field(field)} #{format_operator(operator)}"
+    "#{source}.#{stringify_field(field)} #{stringify_operator(operator)}"
   end
 
   def stringify_condition(%Condition{
@@ -182,7 +184,7 @@ defmodule Ecto.Adapters.Neo4j.Condition do
         operator: operator,
         value: value
       }) do
-    "#{source}.#{format_field(field)} #{format_operator(operator)} {#{value}}"
+    "#{source}.#{stringify_field(field)} #{stringify_operator(operator)} {#{value}}"
   end
 
   defp to_relationship_clause(
@@ -195,7 +197,7 @@ defmodule Ecto.Adapters.Neo4j.Condition do
        )
        when not is_nil(field) do
     # """
-    # n#{inspect(source)}.#{formated_field} #{format_operator(operator)}
+    # n#{inspect(source)}.#{formated_field} #{stringify_operator(operator)}
     # """
     cql = """
     NOT (n)-[:#{format_relationship(field)}]->(n#{inspect(source)})
@@ -210,7 +212,7 @@ defmodule Ecto.Adapters.Neo4j.Condition do
        )
        when not is_nil(field) do
     # """
-    # n#{inspect(source)}.#{formated_field} #{format_operator(operator)} {#{formated_field}}
+    # n#{inspect(source)}.#{formated_field} #{stringify_operator(operator)} {#{formated_field}}
     # """
     props_data = format_properties(value)
 
@@ -235,7 +237,7 @@ defmodule Ecto.Adapters.Neo4j.Condition do
          clauses
        ) do
     # """
-    # #{to_relationship_clause(condition1)} #{format_operator(operator)} #{
+    # #{to_relationship_clause(condition1)} #{stringify_operator(operator)} #{
     #   to_relationship_clause(condition2)
     # }
     # """
@@ -263,7 +265,7 @@ defmodule Ecto.Adapters.Neo4j.Condition do
         false ->
           wheres
       end
-      |> Enum.join(format_operator(operator))
+      |> Enum.join(stringify_operator(operator))
 
     params = Map.merge(c1_clauses.params, c2_clauses.params)
 
@@ -315,23 +317,24 @@ defmodule Ecto.Adapters.Neo4j.Condition do
   #   end)
   # end
 
-  defp format_operator(:==) do
+  @spec stringify_operator(atom) :: String.t()
+  defp stringify_operator(:==) do
     "="
   end
 
-  defp format_operator(:!=) do
+  defp stringify_operator(:!=) do
     "<>"
   end
 
-  defp format_operator(:in) do
+  defp stringify_operator(:in) do
     "IN"
   end
 
-  defp format_operator(:is_nil) do
+  defp stringify_operator(:is_nil) do
     "IS NULL"
   end
 
-  defp format_operator(operator) when operator in @valid_operators do
+  defp stringify_operator(operator) when operator in @valid_operators do
     Atom.to_string(operator)
   end
 
@@ -347,11 +350,12 @@ defmodule Ecto.Adapters.Neo4j.Condition do
 
   defp format_properties(rel_props) do
     Enum.map(rel_props, fn {prop, _} ->
-      "#{format_field(prop)}: {#{format_field(prop)}}"
+      "#{stringify_field(prop)}: {#{stringify_field(prop)}}"
     end)
     |> Enum.join(", ")
   end
 
-  defp format_field(:id), do: format_field(:nodeId)
-  defp format_field(field), do: field |> Atom.to_string()
+  @spec stringify_field(atom) :: String.t()
+  defp stringify_field(:id), do: stringify_field(:nodeId)
+  defp stringify_field(field), do: field |> Atom.to_string()
 end

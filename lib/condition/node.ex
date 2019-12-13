@@ -6,7 +6,7 @@ defmodule Ecto.Adapters.Neo4j.Condition.Node do
           params: map()
         }
 
-  @spec format(Condition.t(), Condition.clauses()) :: Condition.clauses()
+  @spec format(Condition.t(), clauses()) :: clauses()
   def format(condition, clauses \\ %{where: nil, params: %{}})
 
   def format(
@@ -64,6 +64,7 @@ defmodule Ecto.Adapters.Neo4j.Condition.Node do
     }
   end
 
+  @spec define_bound_name(String.t(), atom, map) :: String.t()
   defp define_bound_name(source, field, params) do
     wanted_bound_name = source <> "_" <> Atom.to_string(field)
 

@@ -1,12 +1,13 @@
 defmodule Ecto.Adapters.Neo4j.QueryMapper do
   alias Ecto.Adapters.Neo4j.{Query, Condition, Helper}
 
-  @spec map(atom(), Ecto.Query.t(), [], Keyword.t()) :: Ecto.Adapters.Neo4j.Query.t()
+  @spec map(atom(), Ecto.Query.t(), [], Keyword.t()) :: Query.t()
   def map(operation, %Ecto.Query{} = query, unbound_params, opts) do
     neo4j_query =
       Query.new(operation)
       |> Query.batch(%Query.Batch{
         is_batch?: opts[:batch],
+        type: :basic,
         chunk_size: opts[:chunk_size]
       })
       |> Query.match(map_from(query.sources))
@@ -70,6 +71,7 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     |> Query.skip(map_offset(query.offset))
   end
 
+  @spec map_from(tuple) :: [Query.NodeExpr.t()]
   def map_from(sources) when is_tuple(sources) do
     node_labels =
       sources
@@ -85,16 +87,21 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     end
   end
 
-  def map_join(%Ecto.Query.JoinExpr{on: on}, unbound_params) do
-    build_conditions(on, unbound_params)
-    |> Ecto.Adapters.Neo4j.Condition.Relationship.format()
-  end
+  # def map_join(%Ecto.Query.JoinExpr{on: on}, unbound_params) do
+  #   build_conditions(on, unbound_params)
+  #   |> Ecto.Adapters.Neo4j.Condition.Relationship.format()
+  # end
 
+  @spec map_where([map()] | map(), map(), %{params: map, where: Condition.t()}) :: %{
+          params: map,
+          where: Condition.t()
+        }
   def map_where(expression, unbound_params, clauses) do
     build_conditions(expression, unbound_params)
     |> Ecto.Adapters.Neo4j.Condition.Node.format(clauses)
   end
 
+  @spec map_distinct(nil | map) :: boolean
   def map_distinct(%Ecto.Query.QueryExpr{}) do
     true
   end
@@ -103,6 +110,11 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     false
   end
 
+  @spec map_select(nil | map) :: [
+          Query.NodeExpr.t()
+          | Query.RelationshipExpr.t()
+          | Query.AggregateExpr.t()
+        ]
   def map_select(%{fields: []}) do
     default_return()
   end
@@ -126,6 +138,7 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     [nil]
   end
 
+  @spec default_return() :: [Query.NodeExpr.t()]
   defp default_return() do
     [
       %Query.NodeExpr{
@@ -135,6 +148,7 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     ]
   end
 
+  @spec map_order_by([map]) :: [Query.OrderExpr.t()]
   def map_order_by([]) do
     []
   end
@@ -145,6 +159,7 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     end)
   end
 
+  @spec do_map_order(atom(), [] | atom()) :: [Query.OrderExpr.t()]
   defp do_map_order(order, fields) when is_list(fields) do
     List.foldl(fields, [], fn field, acc ->
       acc ++ do_map_order(order, field)
@@ -160,6 +175,10 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     ]
   end
 
+  @spec map_update(map, map, %{params: map, set: [Query.SetExpr.t()]}) :: %{
+          params: map,
+          set: [Query.SetExpr.t()]
+        }
   def map_update(%Ecto.Query.QueryExpr{expr: [{set_type, set_data}]}, unbound_params, clauses) do
     %{set: sets, params: params} =
       set_data
@@ -188,6 +207,7 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     %{clauses | set: clauses.set ++ sets, params: Map.merge(clauses.params, params)}
   end
 
+  @spec extract_value(any, map()) :: any
   defp extract_value({:^, [], [param_index]}, unbound_params) do
     Enum.at(unbound_params, param_index)
   end
@@ -196,7 +216,7 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     value
   end
 
-  @spec map_limit(nil | Ecto.Query.QueryExpr.t()) :: nil | integer()
+  @spec map_limit(nil | map) :: nil | integer()
   def map_limit(%Ecto.Query.QueryExpr{expr: limit}) do
     limit
   end
@@ -205,7 +225,7 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     nil
   end
 
-  @spec map_offset(nil | Ecto.Query.QueryExpr.t()) :: nil | integer()
+  @spec map_offset(nil | map) :: nil | integer()
   def map_offset(%Ecto.Query.QueryExpr{expr: skip}) do
     skip
   end
@@ -215,6 +235,7 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
   end
 
   ######################################################################
+  @spec build_return_fields(map | tuple) :: [Query.FieldExpr.t() | Query.AggregateExpr.t()]
   defp build_return_fields(%Ecto.Query.Tagged{value: field}) do
     [format_field(field)]
   end
@@ -224,21 +245,10 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     |> Enum.map(&format_field/1)
   end
 
-  # defp format_return_field({{:., _, [{:&, [], [entity_index]}, field_name]}, _, _}) do
-  #   %Query.FieldExpr{
-  #     variable: "n_" <> Integer.to_string(entity_index),
-  #     name: Helper.translate_field(field_name, :to_db)
-  #   }
-  # end
-
+  @spec format_field(tuple) :: Query.FieldExpr.t() | Query.AggregateExpr.t()
   defp format_field({field_alias, {{:., _, [{:&, [], [entity_index]}, field_name]}, _, _}}) do
     %Query.FieldExpr{
-      alias:
-        if is_binary(field_alias) do
-          field_alias
-        else
-          Atom.to_string(field_alias)
-        end,
+      alias: format_field_alias(field_alias),
       variable: "n_" <> Integer.to_string(entity_index),
       name: Helper.translate_field(field_name, :to_db)
     }
@@ -259,6 +269,16 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     }
   end
 
+  @spec format_field_alias(atom | String.t()) :: String.t()
+  defp format_field_alias(field_alias) when is_binary(field_alias) do
+    field_alias
+  end
+
+  defp format_field_alias(field_alias) when is_atom(field_alias) do
+    Atom.to_string(field_alias)
+  end
+
+  @spec build_conditions(map | [map], map) :: Condition.t()
   defp build_conditions([%{expr: expression, op: join_operator}], unbound_params) do
     do_build_condition(expression, unbound_params, join_operator)
   end
@@ -267,6 +287,7 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     build_conditions([wheres], unbound_params)
   end
 
+  @spec do_build_condition(tuple, map, atom) :: Condition.t()
   defp do_build_condition(expression, unbound_params, join_operator \\ :and)
 
   defp do_build_condition(
@@ -352,7 +373,7 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
   defp do_build_condition({operator, _, [arg]}, unbound_params, join_operator) do
     %Condition{
       operator: operator,
-      conditions: do_build_condition(arg, :and, unbound_params),
+      conditions: do_build_condition(arg, unbound_params, :and),
       join_operator: join_operator
     }
   end
