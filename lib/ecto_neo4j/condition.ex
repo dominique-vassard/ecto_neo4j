@@ -1,5 +1,5 @@
 defmodule Ecto.Adapters.Neo4j.Condition do
-  @fields [:source, :field, :operator, :value, :conditions, :join_operator]
+  @fields [:source, :field, :operator, :value, :conditions, join_operator: :and]
   # @enforce_keys @fields
   defstruct @fields
 
@@ -7,7 +7,7 @@ defmodule Ecto.Adapters.Neo4j.Condition do
 
   @type t :: %__MODULE__{
           source: String.t(),
-          field: atom(),
+          field: atom() | Ecto.Adapters.Neo4j.Query.RelationshipExpr.t(),
           operator: atom(),
           value: any(),
           conditions: nil | [Condition.t()],

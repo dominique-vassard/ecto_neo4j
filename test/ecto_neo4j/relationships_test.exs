@@ -37,7 +37,7 @@ defmodule EctoNeo4j.RelationshipsTest do
         uuid: "12903da6-5d46-417b-9cab-bd82766c868b",
         first_name: "John",
         last_name: "Doe",
-        posts: [
+        wrote_post: [
           post1_data,
           post2_data
         ]
@@ -102,15 +102,17 @@ defmodule EctoNeo4j.RelationshipsTest do
       user = add_data()
 
       assert %User{
-               posts: posts,
-               comments: %Ecto.Association.NotLoaded{}
+               wrote_post: posts,
+               wrote_comment: %Ecto.Association.NotLoaded{}
              } =
-               TestRepo.get(User, user.uuid, preload: :posts)
-               |> TestRepo.preload(:posts)
+               TestRepo.get(User, user.uuid)
+               |> TestRepo.preload(:wrote_post)
+               |> IO.inspect(label: "FINAL RES")
 
       assert [
                %EctoNeo4j.Integration.Post{
-                 rel_read: %{},
+                 #  rel_read: %{},
+                 rel_read: nil,
                  rel_wrote: %{"when" => ~D[2018-02-01]},
                  text: "This is the second",
                  title: "Second",
@@ -130,15 +132,16 @@ defmodule EctoNeo4j.RelationshipsTest do
       user = add_data()
 
       assert %User{
-               posts: posts,
-               comments: comments
+               wrote_post: posts,
+               wrote_comment: comments
              } =
-               TestRepo.get(User, user.uuid, preload: :posts)
-               |> TestRepo.preload([:posts, :comments])
+               TestRepo.get(User, user.uuid)
+               |> TestRepo.preload([:wrote_post, :wrote_comment])
 
       assert [
                %EctoNeo4j.Integration.Post{
-                 rel_read: %{},
+                 rel_read: nil,
+                 #  rel_read: %{},
                  rel_wrote: %{"when" => ~D[2018-02-01]},
                  text: "This is the second",
                  title: "Second",
@@ -294,11 +297,11 @@ defmodule EctoNeo4j.RelationshipsTest do
       uuid: "12903da6-5d46-417b-9cab-bd82766c868b",
       first_name: "John",
       last_name: "Doe",
-      posts: [
+      wrote_post: [
         post1_data,
         post2_data
       ],
-      comments: [
+      wrote_comment: [
         comment1_data,
         comment2_data
       ]

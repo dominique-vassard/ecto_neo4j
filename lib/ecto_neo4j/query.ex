@@ -3,7 +3,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
     defstruct [:index, :variable, :labels, :alias]
 
     @type t :: %__MODULE__{
-            index: integer(),
+            index: nil | integer(),
             variable: String.t(),
             labels: nil | [String.t()],
             alias: nil | String.t()
@@ -11,13 +11,16 @@ defmodule Ecto.Adapters.Neo4j.Query do
   end
 
   defmodule RelationshipExpr do
-    defstruct [:index, :variable, :start_index, :end_index, :type]
+    # defstruct [:index, :variable, :start, :end, :start_index, :end_index, :type]
+    defstruct [:index, :variable, :start, :end, :type]
 
     @type t :: %__MODULE__{
             index: integer(),
             variable: String.t(),
-            start_index: integer(),
-            end_index: integer(),
+            # start_index: integer(),
+            start: NodeExpr.t(),
+            end: NodeExpr.t(),
+            # end_index: integer(),
             type: String.t()
           }
   end
@@ -53,11 +56,20 @@ defmodule Ecto.Adapters.Neo4j.Query do
           }
   end
 
+  defmodule CollectExpr do
+    defstruct [:alias, :variable]
+
+    @type t :: %__MODULE__{
+            alias: String.t(),
+            variable: String.t()
+          }
+  end
+
   defmodule ReturnExpr do
     defstruct [:fields, is_distinct?: false]
 
     @type t :: %__MODULE__{
-            fields: [nil | FieldExpr.t() | AggregateExpr.t() | NodeExpr.t()],
+            fields: [nil | FieldExpr.t() | AggregateExpr.t() | NodeExpr.t() | CollectExpr.t()],
             is_distinct?: boolean()
           }
   end
@@ -384,12 +396,17 @@ defmodule Ecto.Adapters.Neo4j.Query do
   end
 
   defp stringify_match_entity(%RelationshipExpr{
-         start_index: start_variable,
-         end_index: end_variable,
+         start: %NodeExpr{variable: start_variable, labels: [start_label]},
+         end: %NodeExpr{variable: end_variable, labels: [end_label]},
          type: rel_type,
          variable: variable
        }) do
-    "(#{start_variable})-[#{variable}:#{rel_type}]->(#{end_variable})"
+    cql_type =
+      unless is_nil(rel_type) do
+        ":#{rel_type}"
+      end
+
+    "(#{start_variable}:#{start_label})-[#{variable}#{cql_type}]->(#{end_variable}:#{end_label})"
   end
 
   @spec stringify_delete([]) :: String.t()
@@ -422,6 +439,9 @@ defmodule Ecto.Adapters.Neo4j.Query do
 
         %AggregateExpr{} = aggregate ->
           stringify_aggregate(aggregate)
+
+        %CollectExpr{} = collect ->
+          stringify_collect(collect)
 
         %FieldExpr{} = field ->
           stringify_field(field)
@@ -540,6 +560,11 @@ defmodule Ecto.Adapters.Neo4j.Query do
       end
 
     "#{format_operator(operator)}(#{cql_distinct}#{target})#{cql_alias}"
+  end
+
+  @spec stringify_collect(CollectExpr.t()) :: String.t()
+  def stringify_collect(%CollectExpr{alias: collect_alias, variable: variable}) do
+    "COLLECT (#{variable}) AS #{collect_alias}"
   end
 
   @spec format_operator(atom()) :: String.t()

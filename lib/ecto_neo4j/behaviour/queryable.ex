@@ -59,7 +59,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
   end
 
   #### ALTERNATE
-  defp run_query(_, %Query{operation: operation, batch: %{is_batch?: true}} = query, opts)
+  defp run_query(_, %Query{operation: operation, batch: %{is_batch?: true}} = query, _opts)
        when operation in [:update, :update_all, :delete, :delete_all] do
     case run_batch_query(query) do
       {:ok, []} ->
@@ -77,7 +77,13 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
 
     case query(cql, params, conn: conn) do
       {:ok, %Bolt.Sips.Response{} = response} ->
-        format_response(query.operation, response, has_result?)
+        case is_preload(response) do
+          true ->
+            format_preload_response(response)
+
+          false ->
+            format_response(query.operation, response, has_result?)
+        end
 
       {:error, error} ->
         raise Bolt.Sips.Exception, error.message
@@ -86,6 +92,11 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
     # end
   end
 
+  defp is_preload(%Bolt.Sips.Response{fields: fields}) do
+    Enum.member?(fields, "rel_preload")
+  end
+
+  @spec run_batch_query!(Ecto.Adapters.Neo4j.Query.t()) :: {:ok, []}
   def run_batch_query!(query) do
     case run_batch_query(query) do
       {:ok, []} -> {:ok, []}
@@ -93,6 +104,8 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
     end
   end
 
+  @spec run_batch_query(Ecto.Adapters.Neo4j.Query.t()) ::
+          {:error, Bolt.Sips.Error.t()} | {:ok, []}
   def run_batch_query(%Query{batch: %{type: :basic}} = query) do
     {cql, params} = Query.to_string(query)
 
@@ -127,6 +140,34 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
     params = Map.put(params, :skip, skip)
     %Bolt.Sips.Response{results: [%{"nb_touched_nodes" => nb_nodes}]} = query!(cql, params)
     do_run_batch_query_with_skip(cql, params, skip + params.limit, nb_nodes)
+  end
+
+  @spec format_preload_response(Bolt.Sips.Response.t()) :: {non_neg_integer, [any]}
+  defp format_preload_response(response) do
+    res =
+      for result_index <- 0..(Enum.count(response.records) - 1) do
+        record =
+          response.records
+          |> Enum.at(result_index)
+          |> List.delete_at(-1)
+
+        result = Enum.at(response.results, result_index)
+
+        List.foldl(result["rel_preload"], record, fn rel, new_record ->
+          %{type: rel_type_from_db, properties: rel_data} = rel
+
+          rel_index =
+            Enum.find_index(
+              response.fields,
+              &(&1 == "n_0.rel_" <> String.downcase(rel_type_from_db))
+            )
+
+          new_record
+          |> List.replace_at(rel_index, rel_data)
+        end)
+      end
+
+    {length(res), res}
   end
 
   defp format_response(:delete_all, response, _) do

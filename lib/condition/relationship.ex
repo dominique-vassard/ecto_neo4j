@@ -1,5 +1,6 @@
 defmodule Ecto.Adapters.Neo4j.Condition.Relationship do
   alias Ecto.Adapters.Neo4j.Condition
+  alias Ecto.Adapters.Neo4j.Query.{NodeExpr, RelationshipExpr}
 
   @type clauses :: %{
           match: [],
@@ -31,9 +32,17 @@ defmodule Ecto.Adapters.Neo4j.Condition.Relationship do
         clauses
       )
       when not is_nil(field) do
-    relationship = %Ecto.Adapters.Neo4j.Query.RelationshipExpr{
-      start_index: "n_0",
-      end_index: "n_" <> Integer.to_string(end_index),
+    relationship = %RelationshipExpr{
+      start: %NodeExpr{
+        index: 0,
+        variable: "n_0"
+      },
+      end: %NodeExpr{
+        index: end_index,
+        variable: "n_" <> Integer.to_string(end_index)
+      },
+      # start_index: "n_0",
+      # end_index: "n_" <> Integer.to_string(end_index),
       type: format_relationship(field)
     }
 
@@ -66,8 +75,16 @@ defmodule Ecto.Adapters.Neo4j.Condition.Relationship do
 
     relationship = %Ecto.Adapters.Neo4j.Query.RelationshipExpr{
       variable: rel_variable,
-      start_index: "n_0",
-      end_index: "n_" <> Integer.to_string(end_index),
+      start: %NodeExpr{
+        index: 0,
+        variable: "n_0"
+      },
+      end: %NodeExpr{
+        index: end_index,
+        variable: "n_" <> Integer.to_string(end_index)
+      },
+      # start_index: "n_0",
+      # end_index: "n_" <> Integer.to_string(end_index),
       type: format_relationship(field)
     }
 
