@@ -132,11 +132,13 @@ defmodule EctoNeo4j.RelationshipsTest do
       user = add_data()
 
       assert %User{
-               wrote_post: posts,
+               read_post: read_posts,
+               wrote_post: wrote_posts,
                wrote_comment: comments
              } =
                TestRepo.get(User, user.uuid)
-               |> TestRepo.preload([:wrote_post, :wrote_comment])
+               |> TestRepo.preload([:wrote_post, :wrote_comment, :read_post])
+               |> IO.inspect(label: "FINAL RES")
 
       assert [
                %EctoNeo4j.Integration.Post{
@@ -154,7 +156,16 @@ defmodule EctoNeo4j.RelationshipsTest do
                  title: "First",
                  uuid: "ae830851-9e93-46d5-bbf7-23ab99846497"
                }
-             ] = posts
+             ] = wrote_posts
+
+      assert [
+               %EctoNeo4j.Integration.Post{
+                 rel_read: %{},
+                 rel_wrote: nil,
+                 text: "This is the second",
+                 title: "Second"
+               }
+             ] = read_posts
 
       assert [
                %EctoNeo4j.Integration.Comment{

@@ -105,12 +105,6 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     end
   end
 
-  # def map_preload(
-  #       sources,
-  #       %{expr: {:{}, [], [field, {:&, [], [0]}]}, fields: _},
-  #       unbound_params,
-  #       _opts
-  #     )
   def map_preload(operation, query, unbound_params, _opts) do
     %{expr: {:{}, [], [field, {:&, [], [0]}]}, fields: _} = query.select
 
