@@ -46,7 +46,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
           chunk_size: Keyword.get(preprocess, :chunk_size, @chunk_size)
         ]
 
-    {cypher_query, params} = QueryBuilder.build(query_type, query, sources, opts)
+    # {cypher_query, params} = QueryBuilder.build(query_type, query, sources, opts)
 
     conn = get_conn(pool, bolt_role)
 

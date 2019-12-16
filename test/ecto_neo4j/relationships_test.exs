@@ -1,6 +1,6 @@
 defmodule EctoNeo4j.RelationshipsTest do
   use ExUnit.Case, async: false
-  # @moduletag :supported
+  @moduletag :supported
 
   import Ecto.Query
 
@@ -182,41 +182,68 @@ defmodule EctoNeo4j.RelationshipsTest do
     end
 
     test "simple join (no clause)" do
-      _user = add_data()
+      add_data()
 
       query =
         from u in User,
           join: p in Post
 
-      TestRepo.all(query)
+      assert [
+               %EctoNeo4j.Integration.User{
+                 first_name: "John",
+                 last_name: "Doe",
+                 uuid: "12903da6-5d46-417b-9cab-bd82766c868b"
+               },
+               %EctoNeo4j.Integration.User{
+                 first_name: "John",
+                 last_name: "Doe",
+                 uuid: "12903da6-5d46-417b-9cab-bd82766c868b"
+               },
+               %EctoNeo4j.Integration.User{
+                 first_name: "John",
+                 last_name: "Doe",
+                 uuid: "12903da6-5d46-417b-9cab-bd82766c868b"
+               }
+             ] = TestRepo.all(query)
     end
 
     test "simple for a specific relationship type" do
-      _user = add_data()
-
-      _no_data_rel = %{}
+      add_data()
 
       query =
         from u in User,
           join: c in Comment,
           on: c.rel_wrote == ^%{}
 
-      TestRepo.all(query)
+      assert [
+               %EctoNeo4j.Integration.User{
+                 first_name: "John",
+                 last_name: "Doe",
+                 uuid: "12903da6-5d46-417b-9cab-bd82766c868b"
+               },
+               %EctoNeo4j.Integration.User{
+                 first_name: "John",
+                 last_name: "Doe",
+                 uuid: "12903da6-5d46-417b-9cab-bd82766c868b"
+               }
+             ] = TestRepo.all(query)
     end
 
-    # test " on multiple rel types" do
-    #   _user = add_data()
+    test " on multiple rel types" do
+      add_data()
 
-    #   query =
-    #     from u in User,
-    #       join: c in Comment,
-    #       on: c.rel_wrote == ^%{} or c.rel_read == ^%{}
+      query =
+        from u in User,
+          join: p in Post,
+          on: p.rel_wrote == ^%{} or p.rel_read == ^%{}
 
-    #   TestRepo.all(query)
-    # end
+      assert_raise RuntimeError, fn ->
+        TestRepo.all(query)
+      end
+    end
 
     test "with clause on rel props" do
-      _user = add_data()
+      add_data()
 
       rel_data = %{when: ~D[2018-01-01]}
 
@@ -225,10 +252,35 @@ defmodule EctoNeo4j.RelationshipsTest do
           join: p in Post,
           on: p.rel_wrote == ^rel_data
 
-      TestRepo.all(query)
+      assert [
+               %EctoNeo4j.Integration.User{
+                 first_name: "John",
+                 last_name: "Doe",
+                 uuid: "12903da6-5d46-417b-9cab-bd82766c868b"
+               }
+             ] = TestRepo.all(query)
     end
 
     test "with clause on a non-existent relationship" do
+      add_data()
+
+      query =
+        from u in User,
+          join: p in Post,
+          on: is_nil(p.rel_read),
+          select: p
+
+      assert [
+               %EctoNeo4j.Integration.Post{
+                 rel_read: nil,
+                 rel_wrote: nil,
+                 text: "This is the first",
+                 title: "First",
+                 user_read_post_uuid: nil,
+                 user_wrote_post_uuid: nil,
+                 uuid: "ae830851-9e93-46d5-bbf7-23ab99846497"
+               }
+             ] = TestRepo.all(query)
     end
 
     test "most complex join with simple return" do
@@ -246,16 +298,24 @@ defmodule EctoNeo4j.RelationshipsTest do
           on: c.rel_wrote == ^%{},
           where: u.uuid == ^"12903da6-5d46-417b-9cab-bd82766c868b"
 
-      TestRepo.all(query)
-      |> IO.inspect(label: "QUERY RESULT ----------------------> \n")
+      assert [
+               %EctoNeo4j.Integration.User{
+                 first_name: "John",
+                 last_name: "Doe",
+                 uuid: "12903da6-5d46-417b-9cab-bd82766c868b"
+               },
+               %EctoNeo4j.Integration.User{
+                 first_name: "John",
+                 last_name: "Doe",
+                 uuid: "12903da6-5d46-417b-9cab-bd82766c868b"
+               }
+             ] = TestRepo.all(query)
     end
 
     test "most complex join with complex return" do
       add_data()
 
       rel_data = %{when: ~D[2018-01-01]}
-      empy_rel = %{}
-      uuid = "zefzef-frzegz"
 
       query =
         from u in User,
@@ -265,10 +325,10 @@ defmodule EctoNeo4j.RelationshipsTest do
               p.rel_read == ^%{},
           join: c in Comment,
           on: c.rel_wrote == ^%{},
-          where: u.uuid == ^"12903da6-5d46-417b-9cab-bd82766c868b"
+          where: u.uuid == ^"12903da6-5d46-417b-9cab-bd82766c868b",
+          select: [u.first_name, p.title, c.text]
 
-      TestRepo.all(query)
-      # |> IO.inspect(label: "QUERY RESULT ----------------------> \n")
+      assert [] = TestRepo.all(query)
     end
   end
 

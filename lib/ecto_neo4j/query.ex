@@ -395,19 +395,30 @@ defmodule Ecto.Adapters.Neo4j.Query do
     "(#{variable}:#{label})"
   end
 
-  defp stringify_match_entity(%RelationshipExpr{
-         start: %NodeExpr{variable: start_variable, labels: [start_label]},
-         end: %NodeExpr{variable: end_variable, labels: [end_label]},
-         type: rel_type,
-         variable: variable
-       }) do
+  defp stringify_match_entity(%NodeExpr{variable: variable}) do
+    "(#{variable})"
+  end
+
+  defp stringify_match_entity(%RelationshipExpr{start: start_node, end: end_node, type: rel_type, variable: variable}) do
     cql_type =
       unless is_nil(rel_type) do
         ":#{rel_type}"
       end
-
-    "(#{start_variable}:#{start_label})-[#{variable}#{cql_type}]->(#{end_variable}:#{end_label})"
+    stringify_match_entity(start_node) <> "-[#{variable}#{cql_type}]->" <> stringify_match_entity(end_node)
   end
+  # defp stringify_match_entity(%RelationshipExpr{
+  #        start: %NodeExpr{variable: start_variable, labels: [start_label]},
+  #        end: %NodeExpr{variable: end_variable, labels: [end_label]},
+  #        type: rel_type,
+  #        variable: variable
+  #      }) do
+  #   cql_type =
+  #     unless is_nil(rel_type) do
+  #       ":#{rel_type}"
+  #     end
+
+  #   "(#{start_variable}:#{start_label})-[#{variable}#{cql_type}]->(#{end_variable}:#{end_label})"
+  # end
 
   @spec stringify_delete([]) :: String.t()
   def stringify_delete(matches) do

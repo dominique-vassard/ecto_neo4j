@@ -23,15 +23,15 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
       |> Query.match(map_from(query.sources))
 
     # Manage JOIN
-    # neo4j_query =
-    #   query.joins
-    #   |> Enum.map(&map_join(&1, unbound_params))
-    #   |> Enum.reduce(neo4j_query, fn %{match: match, where: where, params: params}, acc ->
-    #     acc
-    #     |> Query.match(match)
-    #     |> Query.where(where)
-    #     |> Query.params(params)
-    #   end)
+    neo4j_query =
+      query.joins
+      |> Enum.map(&map_join(&1, unbound_params))
+      |> Enum.reduce(neo4j_query, fn %{match: match, where: where, params: params}, acc ->
+        acc
+        |> Query.match(match)
+        |> Query.where(where)
+        |> Query.params(params)
+      end)
 
     # Manage WHERE
     wheres =
@@ -201,10 +201,17 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     |> Query.params(params)
   end
 
-  # def map_join(%Ecto.Query.JoinExpr{on: on}, unbound_params) do
-  #   build_conditions(on, unbound_params)
-  #   |> Ecto.Adapters.Neo4j.Condition.Relationship.format()
-  # end
+  @spec map_join(Ecto.Query.JoinExpr.t(), map) ::
+          Ecto.Adapters.Neo4j.Condition.Relationship.clauses()
+  def map_join(%Ecto.Query.JoinExpr{ix: source_idx, on: %{expr: true} = on}, unbound_params) do
+    build_conditions(Map.merge(on, %{source_idx: source_idx}), unbound_params)
+    |> Ecto.Adapters.Neo4j.Condition.Relationship.format()
+  end
+
+  def map_join(%Ecto.Query.JoinExpr{on: on}, unbound_params) do
+    build_conditions(on, unbound_params)
+    |> Ecto.Adapters.Neo4j.Condition.Relationship.format()
+  end
 
   @spec map_where([map()] | map(), map(), %{params: map, where: Condition.t()}) :: %{
           params: map,
@@ -401,6 +408,19 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
   @spec build_conditions(map | [map], map) :: Condition.t()
   defp build_conditions([%{expr: expression, op: join_operator}], unbound_params) do
     do_build_condition(expression, unbound_params, join_operator)
+  end
+
+  defp build_conditions([%{expr: expression}], unbound_params) do
+    do_build_condition(expression, unbound_params)
+  end
+
+  defp build_conditions(%{expr: true, source_idx: source_idx}, _) do
+    %Condition{
+      source: "n_" <> Integer.to_string(source_idx),
+      field: nil,
+      operator: :==,
+      value: %{}
+    }
   end
 
   defp build_conditions(%{} = wheres, unbound_params) do

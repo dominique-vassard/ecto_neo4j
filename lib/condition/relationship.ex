@@ -5,32 +5,21 @@ defmodule Ecto.Adapters.Neo4j.Condition.Relationship do
   @type clauses :: %{
           match: [],
           where: nil | Condition.t(),
-          params: map(),
-          link_operator: :and | :or
+          params: map()
         }
 
-  @spec format({:and | :or, Condition.t()}) :: clauses
-  def format({link_operator, condition}) do
-    clauses = %{match: [], where: nil, params: %{}, link_operator: link_operator}
-    do_format(condition, clauses)
+  @spec format(Condition.t()) :: clauses
+  def format(condition, clauses \\ %{match: [], where: nil, params: %{}})
+
+  def format(nil, _) do
+    nil
   end
 
-  @spec do_format(Condition.t(), clauses) :: clauses
-
-  def do_format(condition, clauses \\ %{match: [], where: nil, params: %{}, link_operator: :and})
-
-  def do_format(%{operator: :or}, _) do
+  def format(%{operator: :or}, _) do
     raise "OR is not supported in joins!"
   end
 
-  def do_format(
-        %{
-          source: end_index,
-          field: field,
-          operator: :is_nil
-        },
-        clauses
-      )
+  def format(%{source: end_variable, field: field, operator: :is_nil}, clauses)
       when not is_nil(field) do
     relationship = %RelationshipExpr{
       start: %NodeExpr{
@@ -38,11 +27,8 @@ defmodule Ecto.Adapters.Neo4j.Condition.Relationship do
         variable: "n_0"
       },
       end: %NodeExpr{
-        index: end_index,
-        variable: "n_" <> Integer.to_string(end_index)
+        variable: end_variable
       },
-      # start_index: "n_0",
-      # end_index: "n_" <> Integer.to_string(end_index),
       type: format_relationship(field)
     }
 
@@ -66,12 +52,12 @@ defmodule Ecto.Adapters.Neo4j.Condition.Relationship do
     %{clauses | where: new_condition}
   end
 
-  def do_format(
-        %{source: end_index, field: field, operator: :==, value: value},
+  def format(
+        %{source: end_variable, field: field, operator: :==, value: value},
         clauses
       )
       when not is_nil(field) do
-    rel_variable = (field |> Atom.to_string()) <> inspect(end_index)
+    rel_variable = Atom.to_string(field) <> "_" <> end_variable
 
     relationship = %Ecto.Adapters.Neo4j.Query.RelationshipExpr{
       variable: rel_variable,
@@ -80,11 +66,8 @@ defmodule Ecto.Adapters.Neo4j.Condition.Relationship do
         variable: "n_0"
       },
       end: %NodeExpr{
-        index: end_index,
-        variable: "n_" <> Integer.to_string(end_index)
+        variable: end_variable
       },
-      # start_index: "n_0",
-      # end_index: "n_" <> Integer.to_string(end_index),
       type: format_relationship(field)
     }
 
@@ -109,12 +92,12 @@ defmodule Ecto.Adapters.Neo4j.Condition.Relationship do
     format_wheres(wheres, new_clauses)
   end
 
-  def do_format(
+  def format(
         %{operator: operator, conditions: [condition1, condition2]},
         clauses
       ) do
-    c1 = do_format(condition1)
-    c2 = do_format(condition2)
+    c1 = format(condition1)
+    c2 = format(condition2)
 
     condition =
       Condition.join_conditions(c1.where, c2.where, operator)
@@ -125,6 +108,25 @@ defmodule Ecto.Adapters.Neo4j.Condition.Relationship do
       | match: clauses.match ++ c1.match ++ c2.match,
         where: condition,
         params: clauses.params |> Map.merge(c1.params) |> Map.merge(c2.params)
+    }
+  end
+
+  def format(%{source: end_variable, field: nil}, clauses) do
+    relationship = %Ecto.Adapters.Neo4j.Query.RelationshipExpr{
+      variable: "rel_" <> end_variable,
+      start: %NodeExpr{
+        index: 0,
+        variable: "n_0"
+      },
+      end: %NodeExpr{
+        variable: end_variable
+      },
+      type: nil
+    }
+
+    %{
+      clauses
+      | match: clauses.match ++ [relationship]
     }
   end
 
@@ -147,6 +149,9 @@ defmodule Ecto.Adapters.Neo4j.Condition.Relationship do
       n_cond =
         case acc.where do
           [] ->
+            where
+
+          nil ->
             where
 
           condition ->
