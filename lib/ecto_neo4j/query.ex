@@ -11,19 +11,18 @@ defmodule Ecto.Adapters.Neo4j.Query do
   end
 
   defmodule RelationshipExpr do
-    # defstruct [:index, :variable, :start, :end, :start_index, :end_index, :type]
     defstruct [:index, :variable, :start, :end, :type]
 
     @type t :: %__MODULE__{
             index: integer(),
             variable: String.t(),
-            # start_index: integer(),
             start: NodeExpr.t(),
             end: NodeExpr.t(),
-            # end_index: integer(),
             type: String.t()
           }
   end
+
+  @type entity_expr :: NodeExpr.t() | RelationshipExpr.t()
 
   defmodule FieldExpr do
     defstruct [:alias, :variable, :name]
@@ -32,6 +31,16 @@ defmodule Ecto.Adapters.Neo4j.Query do
             alias: String.t(),
             variable: String.t(),
             name: atom()
+          }
+  end
+
+  defmodule ValueExpr do
+    defstruct [:name, :variable, :value]
+
+    @type t :: %__MODULE__{
+            name: String.t(),
+            variable: String.t(),
+            value: any
           }
   end
 
@@ -69,7 +78,14 @@ defmodule Ecto.Adapters.Neo4j.Query do
     defstruct [:fields, is_distinct?: false]
 
     @type t :: %__MODULE__{
-            fields: [nil | FieldExpr.t() | AggregateExpr.t() | NodeExpr.t() | CollectExpr.t()],
+            fields: [
+              nil
+              | FieldExpr.t()
+              | AggregateExpr.t()
+              | NodeExpr.t()
+              | CollectExpr.t()
+              | ValueExpr.t()
+            ],
             is_distinct?: boolean()
           }
   end
@@ -81,6 +97,16 @@ defmodule Ecto.Adapters.Neo4j.Query do
             field: FieldExpr.t(),
             value: any(),
             increment: integer()
+          }
+  end
+
+  defmodule MergeExpr do
+    defstruct [:expr, on_create: [], on_update: []]
+
+    @type t :: %__MODULE__{
+            expr: Query.entity_expr(),
+            on_create: [SetExpr.t()],
+            on_update: [SetExpr.t()]
           }
   end
 
@@ -108,6 +134,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
   defstruct [
     :operation,
     :match,
+    :merge,
     :where,
     :return,
     :set,
@@ -118,10 +145,10 @@ defmodule Ecto.Adapters.Neo4j.Query do
     :batch
   ]
 
-  @type entity_expr :: NodeExpr.t() | RelationshipExpr.t()
   @type t :: %__MODULE__{
           operation: atom(),
           match: [entity_expr],
+          merge: nil | Merge.Expr.t(),
           where: nil | Ecto.Adapters.Neo4j.Condition.t(),
           set: [SetExpr.t()],
           return: nil | ReturnExpr.t(),
@@ -144,6 +171,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
     %Query{
       operation: operation,
       match: [],
+      merge: nil,
       where: nil,
       set: [],
       return: nil,
@@ -176,6 +204,11 @@ defmodule Ecto.Adapters.Neo4j.Query do
   @spec match(Query.t(), [entity_expr]) :: Query.t()
   def match(query, match) when is_list(match) do
     %{query | match: query.match ++ match}
+  end
+
+  @spec merge(Query.t(), MergeExpr.t()) :: Query.t()
+  def merge(query, %MergeExpr{} = merge) do
+    %{query | merge: merge}
   end
 
   @spec where(Query.t(), nil | Ecto.Adapters.Neo4j.Condition.t()) :: Query.t()
@@ -299,6 +332,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
       |> MapSet.to_list()
       |> stringify_match()
 
+    cql_merge = stringify_merge(query.merge)
     where = stringify_where(query.where)
     return = stringify_return(query.return)
     order_by = stringify_order_by(query.order_by)
@@ -314,6 +348,22 @@ defmodule Ecto.Adapters.Neo4j.Query do
         |> stringify_delete()
       else
         ""
+      end
+
+    cql_match =
+      if String.length(match) > 0 do
+        """
+        MATCH
+          #{match}
+        """
+      end
+
+    cql_return =
+      if String.length(return) > 0 do
+        """
+        RETURN
+          #{return}
+        """
       end
 
     cql_set =
@@ -368,14 +418,13 @@ defmodule Ecto.Adapters.Neo4j.Query do
       end
 
     cql = """
-    MATCH
-      #{match}
+    #{cql_match}
     #{cql_where}
+    #{cql_merge}
     #{cql_batch}
     #{cql_delete}
     #{cql_set}
-    RETURN
-      #{return}
+    #{cql_return}
     #{cql_order_by}
     #{cql_skip}
     #{cql_limit}
@@ -399,13 +448,21 @@ defmodule Ecto.Adapters.Neo4j.Query do
     "(#{variable})"
   end
 
-  defp stringify_match_entity(%RelationshipExpr{start: start_node, end: end_node, type: rel_type, variable: variable}) do
+  defp stringify_match_entity(%RelationshipExpr{
+         start: start_node,
+         end: end_node,
+         type: rel_type,
+         variable: variable
+       }) do
     cql_type =
       unless is_nil(rel_type) do
         ":#{rel_type}"
       end
-    stringify_match_entity(start_node) <> "-[#{variable}#{cql_type}]->" <> stringify_match_entity(end_node)
+
+    stringify_match_entity(start_node) <>
+      "-[#{variable}#{cql_type}]->" <> stringify_match_entity(end_node)
   end
+
   # defp stringify_match_entity(%RelationshipExpr{
   #        start: %NodeExpr{variable: start_variable, labels: [start_label]},
   #        end: %NodeExpr{variable: end_variable, labels: [end_label]},
@@ -419,6 +476,46 @@ defmodule Ecto.Adapters.Neo4j.Query do
 
   #   "(#{start_variable}:#{start_label})-[#{variable}#{cql_type}]->(#{end_variable}:#{end_label})"
   # end
+
+  @spec stringify_merge(nil | MergeExpr.t()) :: String.t()
+  def stringify_merge(%MergeExpr{expr: entity, on_create: create_sets, on_update: update_sets}) do
+    cql_create =
+      if length(create_sets) > 0 do
+        sets =
+          create_sets
+          |> Enum.map(&stringify_set/1)
+          |> Enum.join(",\n  ")
+
+        """
+        ON CREATE SET
+          #{sets}
+        """
+      end
+
+    cql_update =
+      if length(update_sets) > 0 do
+        sets =
+          update_sets
+          |> Enum.map(&stringify_set/1)
+          |> Enum.join(",\n  ")
+
+        """
+        ON UPDATE SET
+          #{sets}
+        """
+      end
+
+    """
+    MERGE
+      #{stringify_match_entity(entity)}
+    #{cql_create}
+    #{cql_update}
+    """
+  end
+
+  def stringify_merge(_) do
+    ""
+  end
 
   @spec stringify_delete([]) :: String.t()
   def stringify_delete(matches) do
@@ -448,6 +545,9 @@ defmodule Ecto.Adapters.Neo4j.Query do
         %NodeExpr{} = node ->
           stringify_node(node)
 
+        %RelationshipExpr{} = relationship ->
+          stringify_relationship(relationship)
+
         %AggregateExpr{} = aggregate ->
           stringify_aggregate(aggregate)
 
@@ -456,10 +556,17 @@ defmodule Ecto.Adapters.Neo4j.Query do
 
         %FieldExpr{} = field ->
           stringify_field(field)
+
+        %ValueExpr{} = value ->
+          stringify_value(value)
       end)
       |> Enum.join(", ")
 
     "#{distinct}#{fields_cql}"
+  end
+
+  def stringify_return(_) do
+    ""
   end
 
   @spec stringify_set(SetExpr.t()) :: String.t()
@@ -546,6 +653,11 @@ defmodule Ecto.Adapters.Neo4j.Query do
     variable
   end
 
+  @spec stringify_relationship(RelationshipExpr.t()) :: String.t()
+  def stringify_relationship(%RelationshipExpr{variable: variable}) do
+    variable
+  end
+
   @spec stringify_aggregate(AggregateExpr.t()) :: String.t()
   def stringify_aggregate(%AggregateExpr{field: field} = aggregate) when not is_nil(field) do
     do_stringify_aggregate(aggregate, stringify_field(field))
@@ -576,6 +688,11 @@ defmodule Ecto.Adapters.Neo4j.Query do
   @spec stringify_collect(CollectExpr.t()) :: String.t()
   def stringify_collect(%CollectExpr{alias: collect_alias, variable: variable}) do
     "COLLECT (#{variable}) AS #{collect_alias}"
+  end
+
+  @spec stringify_value(ValueExpr.t()) :: String.t()
+  def stringify_value(%ValueExpr{variable: variable, name: name, value: value}) do
+    "#{inspect(value)} AS #{variable}_#{Atom.to_string(name)}"
   end
 
   @spec format_operator(atom()) :: String.t()

@@ -62,7 +62,19 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Schema do
         end
       end)
 
-    execute(adapter_meta, NodeCql.insert(source, format_data(insert_data), returning_field), opts)
+    primary_key =
+      if is_nil(schema) do
+        []
+      else
+        schema.__schema__(:primary_key)
+        |> Enum.map(&Ecto.Adapters.Neo4j.Helper.translate_field(&1, :to_db))
+      end
+
+    execute(
+      adapter_meta,
+      NodeCql.insert(source, format_data(insert_data), primary_key, returning_field),
+      opts
+    )
   end
 
   def update(adapter_meta, %{source: source}, fields, filters, _returning, opts) do

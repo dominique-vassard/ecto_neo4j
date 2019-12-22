@@ -27,6 +27,9 @@ defmodule Ecto.Adapters.Neo4j do
   defdelegate execute(repo, query_meta, query_cache, sources, preprocess, opts \\ []),
     to: Ecto.Adapters.Neo4j.Behaviour.Queryable
 
+  defdelegate preload(struct_or_structs_or_nil, preloads, opts \\ []),
+    to: Ecto.Adapters.Neo4j.Behaviour.Repo
+
   defdelegate stream(adapter_meta, query_meta, query_cache, params, opts \\ []),
     to: Ecto.Adapters.Neo4j.Behaviour.Queryable
 

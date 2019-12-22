@@ -72,6 +72,7 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     return = %Query.ReturnExpr{
       is_distinct?: map_distinct(query.distinct),
       fields: map_select(query.select)
+      # fields: query.select |> map_select() |> map_return_foreign_keys(query.sources)
     }
 
     neo4j_query
@@ -122,7 +123,7 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
       end)
       |> List.first()
 
-    %Ecto.Association.BelongsTo{field: rel_desc, queryable: parent_schema} = start_node_data
+    %{field: rel_desc, queryable: parent_schema} = start_node_data
 
     target_name =
       schema
@@ -360,6 +361,46 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
   def map_offset(_) do
     nil
   end
+
+  # @spec map_return_foreign_keys(list(), tuple) :: list()
+  # defp map_return_foreign_keys(return_fields, sources) do
+  #   schemas =
+  #     sources
+  #     |> Tuple.to_list()
+  #     |> Enum.map(fn {_, schema, _} -> schema end)
+
+  #   fk_list = Enum.flat_map(schemas, &list_foreign_keys/1)
+
+  #   Enum.map(return_fields, fn
+  #     %Query.FieldExpr{name: field_name} = field ->
+  #       case field_name in fk_list do
+  #         true ->
+  #           %Query.ValueExpr{
+  #             variable: field.variable,
+  #             name: field_name,
+  #             value: "00000000-0000-0000-0000-000000000000"
+  #           }
+
+  #         _ ->
+  #           field
+  #       end
+
+  #     other ->
+  #       other
+  #   end)
+  # end
+
+  # defp list_foreign_keys(schema) do
+  #   Enum.reduce(schema.__schema__(:associations), [], fn assoc, fk_list ->
+  #     case schema.__schema__(:association, assoc) do
+  #       %Ecto.Association.BelongsTo{owner_key: foreign_key} ->
+  #         [foreign_key | fk_list]
+
+  #       _ ->
+  #         fk_list
+  #     end
+  #   end)
+  # end
 
   ######################################################################
   @spec build_return_fields(map | tuple) :: [Query.FieldExpr.t() | Query.AggregateExpr.t()]

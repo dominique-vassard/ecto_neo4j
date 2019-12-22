@@ -33,10 +33,10 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
   ## Example
 
       iex> data = %{title: "New title", uuid: "a-valid-uuid"}
-      iex> Ecto.Adapters.Neo4j.Cql.Node.insert("Post", data)
-      {"CREATE
-        (n:Post)
-      SET
+      iex> Ecto.Adapters.Neo4j.Cql.Node.insert("Post", data, [:uuid])
+      {"MERGE
+        (n:Post {uuid: {uuid}})
+      ON CREATE SET
         n.title = {title},  \\nn.uuid = {uuid}\\n
       RETURN
         n
@@ -44,17 +44,19 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
 
       # With returning fields specified
       iex> data = %{title: "New title", uuid: "a-valid-uuid"}
-      iex> Ecto.Adapters.Neo4j.Cql.Node.insert("Post", data, [:uuid])
-      {"CREATE
-        (n:Post)
-      SET
+      iex> Ecto.Adapters.Neo4j.Cql.Node.insert("Post", data, [:uuid], [:uuid])
+      {"MERGE
+        (n:Post {uuid: {uuid}})
+      ON CREATE SET
         n.title = {title},  \\nn.uuid = {uuid}\\n
       RETURN
         n.uuid AS uuid
       ", %{title: "New title", uuid: "a-valid-uuid"}}
   """
   @spec insert(String.t(), map(), list()) :: {String.t(), map()}
-  def insert(node_label, data, return \\ []) do
+  def insert(node_label, data, primary_keys, return \\ [])
+
+  def insert(node_label, data, [], return) do
     data_to_set =
       data
       |> Enum.map(fn {k, _} -> "n.#{k} = {#{k}}" end)
@@ -67,29 +69,56 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
         """
       end
 
-    return_fields =
-      if length(return) > 0 do
-        return
-        |> Enum.map(fn field -> "n.#{field} AS #{field}" end)
-        |> Enum.join(", ")
-      else
-        "n"
-      end
-
     cql = """
     CREATE
       (n:#{node_label})
     #{cql_set}
     RETURN
-      #{return_fields}
+      #{return_data(return)}
     """
 
     {cql, data}
   end
 
-  # def insert(node_label, data) do
+  def insert(node_label, data, primary_keys, return) do
+    pk_clause =
+      Enum.map(primary_keys, fn pk ->
+        "#{Atom.to_string(pk)}: {#{Atom.to_string(pk)}}"
+      end)
+      |> Enum.join(",")
 
-  # end
+    data_to_set =
+      data
+      |> Enum.map(fn {k, _} -> "n.#{k} = {#{k}}" end)
+
+    cql_set =
+      if length(data_to_set) > 0 do
+        """
+        ON CREATE SET
+          #{Enum.join(data_to_set, ",  \n")}
+        """
+      end
+
+    cql = """
+    MERGE
+      (n:#{node_label} {#{pk_clause}})
+    #{cql_set}
+    RETURN
+      #{return_data(return)}
+    """
+
+    {cql, data}
+  end
+
+  defp return_data(return) do
+    if length(return) > 0 do
+      return
+      |> Enum.map(fn field -> "n.#{field} AS #{field}" end)
+      |> Enum.join(", ")
+    else
+      "n"
+    end
+  end
 
   @doc """
   Returns cypher query to update node data.
