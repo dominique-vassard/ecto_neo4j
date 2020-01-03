@@ -114,12 +114,102 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
     {cql, params} =
       Query.new(:merge)
       |> Query.match(match)
-      |> Query.merge(merge)
+      |> Query.merge([merge])
       |> Query.where(wheres.condition)
       |> Query.params(params)
       |> Query.to_string()
 
     Ecto.Adapters.Neo4j.query!(cql, params)
+  end
+
+  # TODO: On creation, set relationship data...
+  def update(:update, node1_data, node2_data, rel_name) do
+    {relationship_data, %{where: where, params: params}} =
+      build_relationship_and_clauses(node1_data, node2_data, rel_name)
+
+    relationship =
+      relationship_data
+      |> Map.put(:start, Map.drop(relationship_data.start, [:labels]))
+      |> Map.put(:end, Map.drop(relationship_data.end, [:labels]))
+
+    {cql, params} =
+      Query.new(:create)
+      |> Query.match([
+        relationship_data.start,
+        relationship_data.end
+      ])
+      |> Query.merge([
+        %Query.MergeExpr{
+          expr: relationship
+        }
+      ])
+      |> Query.where(where)
+      |> Query.params(params)
+      |> Query.to_string()
+
+    Ecto.Adapters.Neo4j.query!(cql, params)
+
+    add_fk_data(node1_data, node2_data, rel_name)
+    # node2_data
+  end
+
+  def update(:replace, node1_data, node2_data, rel_name) do
+    {relationship, %{where: where, params: params}} =
+      build_relationship_and_clauses(node1_data, node2_data, rel_name)
+
+    {cql, params} =
+      Query.new(:delete)
+      |> Query.match([relationship])
+      |> Query.delete([relationship])
+      |> Query.where(where)
+      |> Query.params(params)
+      |> Query.to_string()
+
+    Ecto.Adapters.Neo4j.query!(cql, params)
+    nil
+  end
+
+  def build_relationship_and_clauses(node1_data, node2_data, rel_name) do
+    n1_data = node_info(node1_data)
+    n2_data = node_info(node2_data)
+
+    %{__struct__: node1_schema} = node1_data
+
+    {start_node, end_node, queryable} =
+      case node1_schema.__schema__(:association, rel_name) do
+        %Ecto.Association.BelongsTo{queryable: queryable} ->
+          {n2_data.expr, n1_data.expr, queryable}
+
+        %{queryable: queryable} ->
+          {n1_data.expr, n2_data.expr, queryable}
+      end
+
+    rel_type =
+      String.replace(
+        Atom.to_string(rel_name),
+        "_" <> String.downcase(queryable.__schema__(:source)),
+        ""
+      )
+      |> String.upcase()
+
+    relationship = %Query.RelationshipExpr{
+      start: start_node,
+      end: end_node,
+      type: rel_type,
+      variable: "rel"
+    }
+
+    wheres =
+      (build_where(n1_data) ++ build_where(n2_data))
+      |> Enum.reduce(%{where: nil, params: %{}}, fn where, acc ->
+        %{
+          acc
+          | where: Condition.join_conditions(acc.where, where.condition, :and),
+            params: Map.merge(acc.params, where.params)
+        }
+      end)
+
+    {relationship, wheres}
   end
 
   defp node_info(%{__struct__: module} = data) do
@@ -151,6 +241,24 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
         condition: condition,
         params: Map.put(%{}, String.to_atom(field_var), Map.fetch!(node_data.data, pk))
       }
+    end)
+  end
+
+  defp add_fk_data(parent, child, field) do
+    %{__struct__: child_schema} = child
+
+    Enum.reduce(child_schema.__schema__(:associations), nil, fn assoc, result ->
+      case child_schema.__schema__(:association, assoc) do
+        %Ecto.Association.BelongsTo{
+          field: ^field,
+          owner_key: foreign_key,
+          related_key: parent_key
+        } ->
+          Map.put(child, foreign_key, Map.fetch!(parent, parent_key))
+
+        _ ->
+          result
+      end
     end)
   end
 end

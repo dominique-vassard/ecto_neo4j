@@ -9,9 +9,10 @@ defmodule EctoNeo4j.Integration.User do
 
     outgoing_relationship :wrote_comment, EctoNeo4j.Integration.Comment
     outgoing_relationship :has_userprofile, EctoNeo4j.Integration.UserProfile, unique: true
+    outgoing_relationship(:wrote_post, EctoNeo4j.Integration.Post)
 
     # has_many :wrote_comment, EctoNeo4j.Integration.Comment, foreign_key: :user_wrote_comment_uuid
-    has_many :wrote_post, EctoNeo4j.Integration.Post, foreign_key: :wrote_post_uuid
+    # has_many :wrote_post, EctoNeo4j.Integration.Post, foreign_key: :wrote_post_uuid
     has_many :read_post, EctoNeo4j.Integration.Post, foreign_key: :user_read_post_uuid
   end
 end
@@ -44,7 +45,7 @@ defmodule EctoNeo4j.Integration.Post do
     # has_many :has_comment, EctoNeo4j.Integration.Comment, foreign_key: :post_has_comment_uuid
     outgoing_relationship :has_comment, EctoNeo4j.Integration.Comment
 
-    incoming_relationship(:wrote_post, EctoNeo4j.Integration.User)
+    incoming_relationship :wrote_post, EctoNeo4j.Integration.User
 
     # belongs_to :wrote_post, EctoNeo4j.Integration.User,
     #   foreign_key: :wrote_post_uuid,

@@ -63,6 +63,58 @@ defmodule Ecto.Adapters.Neo4j do
   defdelegate update(adapter_meta, schema_meta, fields, filters, returning, options),
     to: Ecto.Adapters.Neo4j.Behaviour.Schema
 
+  def update(changeset, repo, opts \\ [])
+
+  def update(%Ecto.Changeset{valid?: true} = changeset, repo, opts) do
+    %{__struct__: schema} = changeset.data
+
+    %{changes: new_changes, new_data: new_data} =
+      Enum.reduce(changeset.changes, %{changes: changeset.changes, new_data: %{}}, fn {field,
+                                                                                       change},
+                                                                                      changes ->
+        if field in schema.__schema__(:associations) and is_list(change) do
+          new_data =
+            Enum.map(change, fn c ->
+              Ecto.Adapters.Neo4j.Behaviour.Relationship.update(
+                c.action,
+                changeset.data,
+                c.data,
+                field
+              )
+            end)
+            |> Enum.reject(&is_nil/1)
+
+          %{
+            changes
+            | changes: Map.drop(changes.changes, [field]),
+              new_data: Map.put(changes.new_data, field, new_data)
+          }
+        else
+          changes
+        end
+      end)
+
+    top_level_data =
+      Enum.reduce(new_data, changeset.data, fn {key, value}, data ->
+        Map.put(data, key, value)
+      end)
+
+    Map.put(changeset, :data, top_level_data)
+    |> Map.replace!(:changes, new_changes)
+    |> repo.update(opts)
+  end
+
+  def update(changeset, repo, opts) do
+    repo.update(changeset, opts)
+  end
+
+  def update!(changeset, repo, opts) do
+    case update(changeset, repo, opts) do
+      {:ok, result} -> result
+      {:error, error} -> raise error
+    end
+  end
+
   defdelegate delete(adapter_meta, schema_meta, filters, options),
     to: Ecto.Adapters.Neo4j.Behaviour.Schema
 

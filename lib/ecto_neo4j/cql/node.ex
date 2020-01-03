@@ -162,12 +162,16 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
       end)
       |> Map.new()
 
+    cql_set =
+      if String.length(set) > 0 do
+        "SET\n  #{set}"
+      end
+
     cql = """
     MATCH
       (n:#{node_label})
     #{cql_where}
-    SET
-      #{set}
+    #{cql_set}
     RETURN
       n
     """

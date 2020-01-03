@@ -12,10 +12,12 @@ defmodule Ecto.Adapters.Neo4j.Schema do
 
       if Keyword.get(opts, :unique, false) do
         has_one unquote(name), unquote(queryable),
-          foreign_key: unquote(name) |> build_foreign_key()
+          foreign_key: unquote(name) |> build_foreign_key(),
+          on_replace: :delete
       else
         has_many unquote(name), unquote(queryable),
-          foreign_key: unquote(name) |> build_foreign_key()
+          foreign_key: unquote(name) |> build_foreign_key(),
+          on_replace: :delete
       end
     end
   end
@@ -31,7 +33,8 @@ defmodule Ecto.Adapters.Neo4j.Schema do
       belongs_to unquote(name), unquote(queryable),
         foreign_key: foreign_key,
         type: Ecto.UUID,
-        references: :uuid
+        references: :uuid,
+        on_replace: :delete
     end
   end
 

@@ -124,21 +124,21 @@ defmodule EctoNeo4j.RelationshipsTest do
 
       assert [
                %EctoNeo4j.Integration.Post{
+                 rel_read: nil,
+                 rel_wrote: %{"when" => ~D[2018-01-01]},
+                 text: "This is the first",
+                 title: "First",
+                 uuid: "ae830851-9e93-46d5-bbf7-23ab99846497"
+               },
+               %EctoNeo4j.Integration.Post{
                  #  rel_read: %{},
                  rel_read: nil,
                  rel_wrote: %{"when" => ~D[2018-02-01]},
                  text: "This is the second",
                  title: "Second",
                  uuid: "727289bc-ec28-4459-a9dc-a51ee6bfd6ab"
-               },
-               %EctoNeo4j.Integration.Post{
-                 rel_read: nil,
-                 rel_wrote: %{"when" => ~D[2018-01-01]},
-                 text: "This is the first",
-                 title: "First",
-                 uuid: "ae830851-9e93-46d5-bbf7-23ab99846497"
                }
-             ] = posts
+             ] = Enum.sort(posts)
     end
 
     test "downward preload 2 assocs" do
@@ -155,20 +155,20 @@ defmodule EctoNeo4j.RelationshipsTest do
       assert [
                %EctoNeo4j.Integration.Post{
                  rel_read: nil,
+                 rel_wrote: %{"when" => ~D[2018-01-01]},
+                 text: "This is the first",
+                 title: "First",
+                 uuid: "ae830851-9e93-46d5-bbf7-23ab99846497"
+               },
+               %EctoNeo4j.Integration.Post{
+                 rel_read: nil,
                  #  rel_read: %{},
                  rel_wrote: %{"when" => ~D[2018-02-01]},
                  text: "This is the second",
                  title: "Second",
                  uuid: "727289bc-ec28-4459-a9dc-a51ee6bfd6ab"
-               },
-               %EctoNeo4j.Integration.Post{
-                 rel_read: nil,
-                 rel_wrote: %{"when" => ~D[2018-01-01]},
-                 text: "This is the first",
-                 title: "First",
-                 uuid: "ae830851-9e93-46d5-bbf7-23ab99846497"
                }
-             ] = wrote_posts
+             ] = Enum.sort(wrote_posts)
 
       assert [
                %EctoNeo4j.Integration.Post{
@@ -450,31 +450,322 @@ defmodule EctoNeo4j.RelationshipsTest do
     end
   end
 
-  # describe "Update" do
-  #   test "simple" do
-  #     user_data = add_data()
+  describe "Update" do
+    test "belongs to - update from child" do
+      user_data = add_data()
 
-  #     user =
-  #       TestRepo.get(User, user_data.uuid)
-  #       |> TestRepo.preload([:wrote_post])
-  #       |> IO.inspect()
+      new_user =
+        %User{
+          uuid: "ec1741ba-28f2-47fc-8a96-a3c5e24c42da",
+          first_name: "Jack",
+          last_name: "Allops"
+        }
+        |> TestRepo.insert!()
 
-  #     posts =
-  #       user.wrote_post
-  #       |> Enum.map(fn %Post{rel_wrote: %{"when" => when_date} = rel_wrote} = post ->
-  #         new_wrote = Map.put(rel_wrote, "when", Date.add(when_date, 10))
-  #         Map.put(post, :rel_wrote, new_wrote)
-  #       end)
-  #       |> IO.inspect(label: "POSTS")
+      comment_uuid = List.first(user_data.wrote_comment).uuid
 
-  #     user
-  #     |> Ecto.Changeset.change()
-  #     |> Ecto.Changeset.put_assoc(:wrote_post, posts)
-  #     |> IO.inspect(label: "CHANGESET")
-  #     |> TestRepo.update()
-  #     |> IO.inspect(label: "RESULT")
-  #   end
-  # end
+      comment =
+        TestRepo.get(Comment, comment_uuid)
+        |> Ecto.Adapters.Neo4j.preload([:has_comment, :wrote_comment])
+        |> Ecto.Changeset.change()
+        |> Ecto.Changeset.put_assoc(:wrote_comment, new_user)
+        |> Ecto.Adapters.Neo4j.update(TestRepo)
+
+      cql_check = """
+      MATCH
+        (new_user: User {uuid: {new_user_uuid}}),
+        (comment:Comment {uuid: {comment_uuid}}),
+        (new_user)-[:WROTE]->(comment)
+      RETURN
+        COUNT(comment) AS nb_comment
+      """
+
+      params = %{
+        new_user_uuid: new_user.uuid,
+        comment_uuid: comment_uuid
+      }
+
+      assert %Bolt.Sips.Response{results: [%{"nb_comment" => 1}]} =
+               Ecto.Adapters.Neo4j.query!(cql_check, params)
+    end
+
+    test "belongs to - update from child (two relationships at the same time)" do
+      user_data = add_data()
+
+      new_user =
+        %User{
+          uuid: "ec1741ba-28f2-47fc-8a96-a3c5e24c42da",
+          first_name: "Jack",
+          last_name: "Allops"
+        }
+        |> TestRepo.insert!()
+
+      post_uuid = List.last(user_data.wrote_post).uuid
+      post = TestRepo.get(Post, post_uuid)
+
+      comment_uuid = List.first(user_data.wrote_comment).uuid
+
+      comment =
+        TestRepo.get(Comment, comment_uuid)
+        # |> Ecto.Adapters.Neo4j.preload(:has_comment)
+        |> Ecto.Adapters.Neo4j.preload([:has_comment, :wrote_comment])
+        |> Ecto.Changeset.change()
+        |> Ecto.Changeset.put_assoc(:has_comment, post)
+        |> Ecto.Changeset.put_assoc(:wrote_comment, new_user)
+        |> Ecto.Adapters.Neo4j.update(TestRepo)
+
+      cql_check = """
+      MATCH
+        (new_user: User {uuid: {new_user_uuid}}),
+        (new_post:Post {uuid: {new_post_uuid}}),
+        (comment:Comment {uuid: {comment_uuid}}),
+        (new_user)-[:WROTE]->(comment),
+        (new_post)-[:HAS]->(comment)
+      RETURN
+        COUNT(comment) AS nb_comment
+      """
+
+      params = %{
+        new_user_uuid: new_user.uuid,
+        new_post_uuid: post_uuid,
+        comment_uuid: comment_uuid
+      }
+
+      assert %Bolt.Sips.Response{results: [%{"nb_comment" => 1}]} =
+               Ecto.Adapters.Neo4j.query!(cql_check, params)
+    end
+
+    test "belongs to - update from child (remove relationship)" do
+      user_data = add_data()
+
+      new_user =
+        %User{
+          uuid: "ec1741ba-28f2-47fc-8a96-a3c5e24c42da",
+          first_name: "Jack",
+          last_name: "Allops"
+        }
+        |> TestRepo.insert!()
+
+      comment_uuid = List.first(user_data.wrote_comment).uuid
+
+      comment =
+        TestRepo.get(Comment, comment_uuid)
+        |> Ecto.Adapters.Neo4j.preload([:has_comment, :wrote_comment])
+        |> Ecto.Changeset.change()
+        |> Ecto.Changeset.put_assoc(:wrote_comment, nil)
+        |> Ecto.Adapters.Neo4j.update(TestRepo)
+
+      cql_check = """
+      MATCH
+        (user: User {uuid: {user_uuid}}),
+        (comment:Comment {uuid: {comment_uuid}})
+      WHERE
+        NOT (user)-[:WROTE]->(comment)
+      RETURN
+        COUNT(comment) AS nb_comment
+      """
+
+      params = %{
+        user_uuid: user_data.uuid,
+        comment_uuid: comment_uuid
+      }
+
+      assert %Bolt.Sips.Response{results: [%{"nb_comment" => 1}]} =
+               Ecto.Adapters.Neo4j.query!(cql_check, params)
+    end
+
+    test "has many - remove 2 relationships and add A" do
+      user_data = add_data()
+
+      user =
+        TestRepo.get(User, user_data.uuid)
+        |> TestRepo.preload([:wrote_post])
+
+      post_data = %Post{
+        uuid: "76633f38-cf5c-4987-8e59-ed2040f6b9c4",
+        title: "Thrid",
+        text: "This is a new  post",
+        rel_read: %{},
+        rel_wrote: %{}
+      }
+
+      new_post = TestRepo.insert!(post_data)
+
+      assert {:ok,
+              %EctoNeo4j.Integration.User{
+                first_name: "changed!",
+                last_name: "Doe",
+                uuid: "12903da6-5d46-417b-9cab-bd82766c868b",
+                wrote_post: [
+                  %EctoNeo4j.Integration.Post{
+                    rel_read: %{},
+                    rel_wrote: %{},
+                    text: "This is a new  post",
+                    title: "Thrid",
+                    user_read_post_uuid: nil,
+                    uuid: "76633f38-cf5c-4987-8e59-ed2040f6b9c4",
+                    wrote_post_uuid: "12903da6-5d46-417b-9cab-bd82766c868b"
+                  }
+                ]
+              }} =
+               user
+               |> TestRepo.preload([:wrote_post])
+               |> Ecto.Changeset.change()
+               |> Ecto.Changeset.put_change(:first_name, "changed!")
+               |> Ecto.Changeset.put_assoc(:wrote_post, [new_post])
+               |> Ecto.Adapters.Neo4j.update(TestRepo)
+
+      cql_check = """
+      MATCH
+        (user: User {uuid: {user_uuid}}),
+        (user)-[:WROTE]->(post:Post)
+      RETURN
+        COUNT(post) AS nb_post
+      """
+
+      params = %{user_uuid: user_data.uuid}
+
+      assert %Bolt.Sips.Response{results: [%{"nb_post" => 1}]} =
+               Ecto.Adapters.Neo4j.query!(cql_check, params)
+
+      cql_nb_post = """
+      MATCH
+      (p:Post)
+      RETURN
+      COUNT(p) AS nb_post
+      """
+
+      assert %Bolt.Sips.Response{results: [%{"nb_post" => 3}]} =
+               Ecto.Adapters.Neo4j.query!(cql_nb_post, params)
+    end
+
+    test "has many - remove one relationship" do
+      user_data = add_data()
+
+      user =
+        TestRepo.get(User, user_data.uuid)
+        |> TestRepo.preload([:wrote_post])
+
+      assert {:ok,
+              %EctoNeo4j.Integration.User{
+                first_name: "John",
+                last_name: "Doe",
+                uuid: "12903da6-5d46-417b-9cab-bd82766c868b",
+                wrote_post: [
+                  %EctoNeo4j.Integration.Post{
+                    has_comment: [
+                      %EctoNeo4j.Integration.Comment{
+                        has_comment_uuid: nil,
+                        rel_has: %{},
+                        rel_wrote: %{when: ~D[2018-06-18]},
+                        text: "This a comment from john Doe",
+                        uuid: "2be39329-d9b5-4b85-a07f-ee9a2997a8ef",
+                        wrote_comment_uuid: nil
+                      },
+                      %EctoNeo4j.Integration.Comment{
+                        has_comment_uuid: nil,
+                        rel_has: %{},
+                        rel_wrote: %{when: ~D[2018-07-01]},
+                        text: "THis is not the ebest post I've read...",
+                        uuid: "e923428a-6819-47ab-bfef-ca4a2e9b75c3",
+                        wrote_comment_uuid: nil
+                      }
+                    ],
+                    rel_read: nil,
+                    rel_wrote: %{when: ~D[2018-01-01]},
+                    text: "This is the first",
+                    title: "First",
+                    user_read_post_uuid: nil,
+                    uuid: "ae830851-9e93-46d5-bbf7-23ab99846497",
+                    wrote_post_uuid: "12903da6-5d46-417b-9cab-bd82766c868b"
+                  }
+                ]
+              }} =
+               user
+               |> TestRepo.preload([:wrote_post])
+               |> Ecto.Changeset.change()
+               |> Ecto.Changeset.put_assoc(:wrote_post, [List.first(user_data.wrote_post)])
+               |> Ecto.Adapters.Neo4j.update(TestRepo)
+
+      cql_check = """
+      MATCH
+        (user: User {uuid: {user_uuid}}),
+        (user)-[:WROTE]->(post:Post)
+      RETURN
+        COUNT(post) AS nb_post
+      """
+
+      params = %{user_uuid: user_data.uuid}
+
+      assert %Bolt.Sips.Response{results: [%{"nb_post" => 1}]} =
+               Ecto.Adapters.Neo4j.query!(cql_check, params)
+    end
+
+    test "mixed update: belongs_to and has_many" do
+      user_data = add_data()
+
+      new_user =
+        %User{
+          uuid: "ec1741ba-28f2-47fc-8a96-a3c5e24c42da",
+          first_name: "Jack",
+          last_name: "Allops"
+        }
+        |> TestRepo.insert!()
+
+      post_uuid = List.first(user_data.wrote_post).uuid
+
+      assert {:ok,
+              %EctoNeo4j.Integration.Post{
+                has_comment: [],
+                rel_read: nil,
+                rel_wrote: %{"when" => ~D[2018-01-01]},
+                text: "This is the first",
+                title: "First",
+                user_read_post_uuid: nil,
+                uuid: "ae830851-9e93-46d5-bbf7-23ab99846497",
+                wrote_post: %EctoNeo4j.Integration.User{
+                  first_name: "Jack",
+                  last_name: "Allops",
+                  uuid: "ec1741ba-28f2-47fc-8a96-a3c5e24c42da"
+                },
+                wrote_post_uuid: "ec1741ba-28f2-47fc-8a96-a3c5e24c42da"
+              }} =
+               TestRepo.get!(Post, post_uuid)
+               |> Ecto.Adapters.Neo4j.preload([:wrote_post, :has_comment])
+               |> Ecto.Changeset.change()
+               |> Ecto.Changeset.put_assoc(:wrote_post, new_user)
+               |> Ecto.Changeset.put_assoc(:has_comment, [])
+               |> Ecto.Adapters.Neo4j.update(TestRepo)
+
+      cql_check = """
+      MATCH
+        (user: User {uuid: {user_uuid}}),
+        (user)-[:WROTE]->(post:Post {uuid: {post_uuid}})
+      OPTIONAL MATCH
+        (post)-[:HAS]->(comment:Comment)
+      RETURN
+        COUNT(comment) AS nb_comment
+      """
+
+      params = %{user_uuid: new_user.uuid, post_uuid: post_uuid}
+
+      assert %Bolt.Sips.Response{results: [%{"nb_comment" => 0}]} =
+               Ecto.Adapters.Neo4j.query!(cql_check, params)
+    end
+
+    # test "update relationship data" do
+    #   user_data = add_data()
+
+    #   post_uuid = List.first(user_data.wrote_post).uuid
+
+    #   TestRepo.get!(Post, post_uuid)
+    #   |> Ecto.Adapters.Neo4j.preload([:wrote_post])
+    #   |> Ecto.Changeset.change()
+    #   |> Ecto.Changeset.put_change(:rel_wrote, %{when: ~D[2020-03-04]})
+    #   |> Ecto.Adapters.Neo4j.update(TestRepo)
+    #   |> IO.inspect()
+    # end
+  end
 
   defp fixtures() do
     comment1_data = %Comment{

@@ -135,6 +135,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
     :operation,
     :match,
     :merge,
+    :delete,
     :where,
     :return,
     :set,
@@ -148,7 +149,8 @@ defmodule Ecto.Adapters.Neo4j.Query do
   @type t :: %__MODULE__{
           operation: atom(),
           match: [entity_expr],
-          merge: nil | Merge.Expr.t(),
+          merge: [Merge.Expr.t()],
+          delete: [entity_expr],
           where: nil | Ecto.Adapters.Neo4j.Condition.t(),
           set: [SetExpr.t()],
           return: nil | ReturnExpr.t(),
@@ -171,9 +173,10 @@ defmodule Ecto.Adapters.Neo4j.Query do
     %Query{
       operation: operation,
       match: [],
-      merge: nil,
+      merge: [],
       where: nil,
       set: [],
+      delete: [],
       return: nil,
       params: %{},
       order_by: [],
@@ -207,8 +210,13 @@ defmodule Ecto.Adapters.Neo4j.Query do
   end
 
   @spec merge(Query.t(), MergeExpr.t()) :: Query.t()
-  def merge(query, %MergeExpr{} = merge) do
-    %{query | merge: merge}
+  def merge(query, merge) when is_list(merge) do
+    %{query | merge: query.merge ++ merge}
+  end
+
+  @spec delete(Query.t(), [entity_expr]) :: Query.t()
+  def delete(query, delete) when is_list(delete) do
+    %{query | delete: query.delete ++ delete}
   end
 
   @spec where(Query.t(), nil | Ecto.Adapters.Neo4j.Condition.t()) :: Query.t()
@@ -332,7 +340,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
       |> MapSet.to_list()
       |> stringify_match()
 
-    cql_merge = stringify_merge(query.merge)
+    cql_merge = stringify_merges(query.merge)
     where = stringify_where(query.where)
     return = stringify_return(query.return)
     order_by = stringify_order_by(query.order_by)
@@ -340,15 +348,25 @@ defmodule Ecto.Adapters.Neo4j.Query do
     skip = stringify_skip(query.skip)
     cql_batch = stringify_batch(query.batch)
 
+    # TODO: unify in query.delete
     delete =
-      if query.operation == :delete_all do
-        query.match
-        |> MapSet.new()
-        |> MapSet.to_list()
-        |> stringify_delete()
-      else
-        ""
+      cond do
+        query.operation == :delete_all ->
+          stringify_delete(query.match)
+
+        length(query.delete) > 0 ->
+          stringify_delete(query.delete)
+
+        true ->
+          ""
       end
+
+    # if query.operation == :delete_all do
+    #   query.match
+    #   |> stringify_delete()
+    # else
+    #   ""
+    # end
 
     cql_match =
       if String.length(match) > 0 do
@@ -477,6 +495,12 @@ defmodule Ecto.Adapters.Neo4j.Query do
   #   "(#{start_variable}:#{start_label})-[#{variable}#{cql_type}]->(#{end_variable}:#{end_label})"
   # end
 
+  def stringify_merges(merges) do
+    merges
+    |> Enum.map(&stringify_merge/1)
+    |> Enum.join(" \n")
+  end
+
   @spec stringify_merge(nil | MergeExpr.t()) :: String.t()
   def stringify_merge(%MergeExpr{expr: entity, on_create: create_sets, on_update: update_sets}) do
     cql_create =
@@ -518,8 +542,8 @@ defmodule Ecto.Adapters.Neo4j.Query do
   end
 
   @spec stringify_delete([]) :: String.t()
-  def stringify_delete(matches) do
-    Enum.map(matches, fn %{variable: variable} ->
+  def stringify_delete(deletes) do
+    Enum.map(deletes, fn %{variable: variable} ->
       variable
     end)
     |> Enum.join(", ")
