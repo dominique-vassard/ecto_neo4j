@@ -169,6 +169,55 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
     nil
   end
 
+  def update_data(node_schema, rel_field, changes, data) do
+    "rel_" <> rel_type = Atom.to_string(rel_field)
+
+    mod =
+      Module.split(node_schema)
+      |> List.last()
+      |> String.downcase()
+
+    assoc = String.to_atom(rel_type <> "_" <> mod)
+
+    case node_schema.__schema__(:association, assoc) do
+      %Ecto.Association.BelongsTo{queryable: queryable} ->
+        {relationship, %{where: where, params: params}} =
+          build_relationship_and_clauses(data, queryable, assoc)
+
+        %{sets: sets, params: set_params} =
+          Enum.reduce(changes, %{sets: [], params: %{}}, fn {field, value}, sets_data ->
+            bound_name = relationship.variable <> "_" <> Atom.to_string(field)
+
+            set = %Query.SetExpr{
+              field: %Query.FieldExpr{
+                variable: relationship.variable,
+                name: field
+              },
+              value: bound_name
+            }
+
+            %{
+              sets_data
+              | sets: sets_data.sets ++ [set],
+                params: Map.put(sets_data.params, String.to_atom(bound_name), value)
+            }
+          end)
+
+        {cql, params} =
+          Query.new(:update)
+          |> Query.match([relationship])
+          |> Query.where(where)
+          |> Query.set(sets)
+          |> Query.params(Map.merge(params, set_params))
+          |> Query.to_string()
+
+        Ecto.Adapters.Neo4j.query!(cql, params)
+
+      %{__struct__: st} ->
+        raise "#{inspect(st)} is not supported"
+    end
+  end
+
   def build_relationship_and_clauses(node1_data, node2_data, rel_name) do
     n1_data = node_info(node1_data)
     n2_data = node_info(node2_data)
@@ -184,13 +233,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
           {n1_data.expr, n2_data.expr, queryable}
       end
 
-    rel_type =
-      String.replace(
-        Atom.to_string(rel_name),
-        "_" <> String.downcase(queryable.__schema__(:source)),
-        ""
-      )
-      |> String.upcase()
+    rel_type = extract_relationship_type(rel_name, queryable, node1_schema)
 
     relationship = %Query.RelationshipExpr{
       start: start_node,
@@ -212,6 +255,26 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
     {relationship, wheres}
   end
 
+  defp extract_relationship_type(rel_name, queryable, node_schema) do
+    rel_type =
+      String.replace(
+        Atom.to_string(rel_name),
+        "_" <> String.downcase(queryable.__schema__(:source)),
+        ""
+      )
+
+    if rel_type == Atom.to_string(rel_name) do
+      String.replace(
+        Atom.to_string(rel_name),
+        "_" <> String.downcase(node_schema.__schema__(:source)),
+        ""
+      )
+    else
+      rel_type
+    end
+    |> String.upcase()
+  end
+
   defp node_info(%{__struct__: module} = data) do
     label = module.__schema__(:source)
 
@@ -223,6 +286,20 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
         variable: String.downcase(label)
       },
       primary_keys: module.__schema__(:primary_key)
+    }
+  end
+
+  defp node_info(schema) when is_atom(schema) do
+    label = schema.__schema__(:source)
+
+    %{
+      data: nil,
+      label: label,
+      expr: %Query.NodeExpr{
+        labels: [label],
+        variable: String.downcase(label)
+      },
+      primary_keys: []
     }
   end
 

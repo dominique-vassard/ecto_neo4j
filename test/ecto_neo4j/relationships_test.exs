@@ -753,18 +753,45 @@ defmodule EctoNeo4j.RelationshipsTest do
                Ecto.Adapters.Neo4j.query!(cql_check, params)
     end
 
-    # test "update relationship data" do
-    #   user_data = add_data()
+    test "update relationship data" do
+      user_data = add_data()
 
-    #   post_uuid = List.first(user_data.wrote_post).uuid
+      # post_uuid = List.first(user_data.wrote_post).uuid
+      post = List.first(user_data.wrote_post)
 
-    #   TestRepo.get!(Post, post_uuid)
-    #   |> Ecto.Adapters.Neo4j.preload([:wrote_post])
-    #   |> Ecto.Changeset.change()
-    #   |> Ecto.Changeset.put_change(:rel_wrote, %{when: ~D[2020-03-04]})
-    #   |> Ecto.Adapters.Neo4j.update(TestRepo)
-    #   |> IO.inspect()
-    # end
+      assert {:ok,
+              %EctoNeo4j.Integration.Post{
+                rel_read: nil,
+                rel_wrote: %{"when" => ~D[2020-03-04]},
+                text: "This is the first",
+                title: "First",
+                user_read_post_uuid: nil,
+                uuid: "ae830851-9e93-46d5-bbf7-23ab99846497",
+                wrote_post: %EctoNeo4j.Integration.User{
+                  first_name: "John",
+                  last_name: "Doe",
+                  uuid: "12903da6-5d46-417b-9cab-bd82766c868b"
+                },
+                wrote_post_uuid: "12903da6-5d46-417b-9cab-bd82766c868b"
+              }} =
+               TestRepo.get!(Post, post.uuid)
+               |> Ecto.Adapters.Neo4j.preload([:wrote_post])
+               |> Ecto.Changeset.change()
+               |> Ecto.Changeset.put_change(:rel_wrote, %{when: ~D[2020-03-04]})
+               |> Ecto.Adapters.Neo4j.update(TestRepo)
+
+      cql_check = """
+      MATCH
+        (u:User)-[:WROTE {when: {wrote_when}}]->(p:Post {uuid: {post_uuid}})
+      RETURN
+        COUNT (p) AS nb_post
+      """
+
+      params = %{post_uuid: post.uuid, wrote_when: ~D[2020-03-04]}
+
+      assert %Bolt.Sips.Response{results: [%{"nb_post" => 1}]} =
+               Ecto.Adapters.Neo4j.query!(cql_check, params)
+    end
   end
 
   defp fixtures() do

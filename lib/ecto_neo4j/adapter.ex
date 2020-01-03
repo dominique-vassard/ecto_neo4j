@@ -72,25 +72,47 @@ defmodule Ecto.Adapters.Neo4j do
       Enum.reduce(changeset.changes, %{changes: changeset.changes, new_data: %{}}, fn {field,
                                                                                        change},
                                                                                       changes ->
-        if field in schema.__schema__(:associations) and is_list(change) do
-          new_data =
-            Enum.map(change, fn c ->
-              Ecto.Adapters.Neo4j.Behaviour.Relationship.update(
-                c.action,
-                changeset.data,
-                c.data,
-                field
-              )
-            end)
-            |> Enum.reject(&is_nil/1)
+        cond do
+          field in schema.__schema__(:associations) and is_list(change) ->
+            new_data =
+              Enum.map(change, fn c ->
+                Ecto.Adapters.Neo4j.Behaviour.Relationship.update(
+                  c.action,
+                  changeset.data,
+                  c.data,
+                  field
+                )
+              end)
+              |> Enum.reject(&is_nil/1)
 
-          %{
+            %{
+              changes
+              | changes: Map.drop(changes.changes, [field]),
+                new_data: Map.put(changes.new_data, field, new_data)
+            }
+
+          Kernel.match?("rel_" <> _, Atom.to_string(field)) ->
+            Ecto.Adapters.Neo4j.Behaviour.Relationship.update_data(
+              schema,
+              field,
+              change,
+              changeset.data
+            )
+
+            string_change =
+              Enum.map(change, fn {k, v} -> {Atom.to_string(k), v} end)
+              |> Map.new()
+
+            rel_data = Map.merge(Map.fetch!(changeset.data, field), string_change)
+
+            %{
+              changes
+              | changes: Map.drop(changes.changes, [field]),
+                new_data: Map.put(%{}, field, rel_data)
+            }
+
+          true ->
             changes
-            | changes: Map.drop(changes.changes, [field]),
-              new_data: Map.put(changes.new_data, field, new_data)
-          }
-        else
-          changes
         end
       end)
 
@@ -110,8 +132,11 @@ defmodule Ecto.Adapters.Neo4j do
 
   def update!(changeset, repo, opts) do
     case update(changeset, repo, opts) do
-      {:ok, result} -> result
-      {:error, error} -> raise error
+      {:ok, result} ->
+        result
+
+      {:error, error} ->
+        raise error
     end
   end
 

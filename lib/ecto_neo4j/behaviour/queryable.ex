@@ -88,8 +88,6 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
       {:error, error} ->
         raise Bolt.Sips.Exception, error.message
     end
-
-    # end
   end
 
   defp is_preload(%Bolt.Sips.Response{fields: fields}) do
