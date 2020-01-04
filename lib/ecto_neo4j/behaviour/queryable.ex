@@ -50,6 +50,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
     run_query(conn, neo4j_query, opts)
   end
 
+  @spec run_query(atom, Query.t(), Keyword.t()) :: {integer(), nil | [[any()]]}
   defp run_query(_, %Query{operation: operation, batch: %{is_batch?: true}} = query, _opts)
        when operation in [:update, :update_all, :delete, :delete_all] do
     case run_batch_query(query) do
@@ -81,6 +82,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
     end
   end
 
+  @spec is_preload(Bolt.Sips.Response.t()) :: bool
   defp is_preload(%Bolt.Sips.Response{fields: fields}) do
     Enum.member?(fields, "rel_preload")
   end
@@ -159,6 +161,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
     {length(res), res}
   end
 
+  @spec format_response(atom(), Bolt.Sips.Response.t(), bool) :: {integer, nil | [any]}
   defp format_response(:delete_all, response, _) do
     nb_results =
       case response.stats do

@@ -94,6 +94,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Schema do
     )
   end
 
+  @spec update_relationships(atom, Keyword.t(), Keyword.t()) :: :ok
   defp update_relationships(_schema, [], _filters) do
     :ok
   end
@@ -139,6 +140,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Schema do
     :ok
   end
 
+  @spec update_relationship({atom, any()}, atom, Query.t()) :: Query.t()
   defp update_relationship({field_key, field_value}, schema, query) do
     {parent_schema, rel_type, parent_key} =
       schema.__schema__(:associations)
@@ -194,6 +196,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Schema do
     |> add_new_relationship(relationship, parent_key, field_value)
   end
 
+  @spec add_new_relationship(Query.t(), Query.RelationshipExpr.t(), atom, any) :: Query.t()
   def add_new_relationship(query, _relationship, _parent_key, nil) do
     query
   end
@@ -208,6 +211,8 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Schema do
     }
 
     merge_rel = %Query.RelationshipExpr{
+      index: 0,
+      variable: "",
       start: %Query.NodeExpr{
         variable: new_node.variable
       },

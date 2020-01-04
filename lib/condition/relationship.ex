@@ -3,12 +3,12 @@ defmodule Ecto.Adapters.Neo4j.Condition.Relationship do
   alias Ecto.Adapters.Neo4j.Query.{NodeExpr, RelationshipExpr}
 
   @type clauses :: %{
-          match: [],
+          match: list(),
           where: nil | Condition.t(),
           params: map()
         }
 
-  @spec format(Condition.t()) :: clauses
+  @spec format(nil | map(), clauses) :: nil | clauses
   def format(condition, clauses \\ %{match: [], where: nil, params: %{}})
 
   def format(nil, _) do
@@ -130,6 +130,7 @@ defmodule Ecto.Adapters.Neo4j.Condition.Relationship do
     }
   end
 
+  @spec format_relationship(atom | String.t()) :: String.t()
   defp format_relationship(rel_name) when is_atom(rel_name) do
     rel_name
     |> Atom.to_string()
@@ -140,6 +141,7 @@ defmodule Ecto.Adapters.Neo4j.Condition.Relationship do
     String.upcase(rel_name)
   end
 
+  @spec format_wheres([{Condition.t(), map}], clauses) :: clauses
   defp format_wheres([], clauses) do
     clauses
   end

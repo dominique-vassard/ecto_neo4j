@@ -22,6 +22,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
     result
   end
 
+  @spec do_process_relationships(Ecto.Schema.t() | map()) :: :ok
   defp do_process_relationships(%Ecto.Association.NotLoaded{}) do
     :ok
   end
@@ -45,6 +46,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
     :ok
   end
 
+  @spec manage_assoc(Ecto.Schema.t(), atom(), map() | list(map())) :: :ok
   defp manage_assoc(_data, _assoc, %Ecto.Association.NotLoaded{}) do
     :ok
   end
@@ -57,6 +59,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
     manage_assoc(data, assoc, [data_assoc])
   end
 
+  @spec do_manage_assoc(Ecto.Schema.t(), atom, Ecto.Schema.t()) :: Bolt.Sips.Response.t()
   defp do_manage_assoc(data, assoc, data_assoc) do
     start_node = node_info(data)
     end_node = node_info(data_assoc)
@@ -123,7 +126,8 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
     Ecto.Adapters.Neo4j.query!(cql, params)
   end
 
-  # TODO: On creation, set relationship data...
+  @spec update(:replace | :update, Ecto.Schema.t(), atom | Ecto.Schema.t(), atom()) ::
+          nil | Ecto.Schema.t()
   def update(:update, node1_data, node2_data, rel_name) do
     {relationship_data, %{where: where, params: params}} =
       build_relationship_and_clauses(node1_data, node2_data, rel_name)
@@ -151,7 +155,6 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
     Ecto.Adapters.Neo4j.query!(cql, params)
 
     add_fk_data(node1_data, node2_data, rel_name)
-    # node2_data
   end
 
   def update(:replace, node1_data, node2_data, rel_name) do
@@ -170,6 +173,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
     nil
   end
 
+  @spec update_data(atom, atom(), map(), Ecto.Schema.t()) :: Bolt.Sips.Response.t()
   def update_data(node_schema, rel_field, changes, data) do
     "rel_" <> rel_type = Atom.to_string(rel_field)
 
@@ -219,6 +223,8 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
     end
   end
 
+  @spec build_relationship_and_clauses(Ecto.Schema.t(), atom | Ecto.Schema.t(), atom()) ::
+          {Query.RelationshipExpr.t(), map}
   def build_relationship_and_clauses(node1_data, node2_data, rel_name) do
     n1_data = node_info(node1_data)
     n2_data = node_info(node2_data)
@@ -256,6 +262,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
     {relationship, wheres}
   end
 
+  @spec extract_relationship_type(atom(), atom(), atom()) :: String.t()
   defp extract_relationship_type(rel_name, queryable, node_schema) do
     rel_type =
       String.replace(
@@ -276,6 +283,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
     |> String.upcase()
   end
 
+  @spec node_info(Ecto.Schema.t()) :: map()
   defp node_info(%{__struct__: module} = data) do
     label = module.__schema__(:source)
 
@@ -304,6 +312,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
     }
   end
 
+  @spec build_where(map()) :: [map()]
   defp build_where(node_data) do
     Enum.map(node_data.primary_keys, fn pk ->
       field_var = node_data.expr.variable <> Atom.to_string(pk)
@@ -322,6 +331,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
     end)
   end
 
+  @spec add_fk_data(Ecto.Schema.t(), Ecto.Schema.t(), atom) :: nil | Ecto.Schema.t()
   defp add_fk_data(parent, child, field) do
     %{__struct__: child_schema} = child
 

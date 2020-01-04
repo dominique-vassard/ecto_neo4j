@@ -1,6 +1,7 @@
 defmodule Ecto.Adapters.Neo4j.QueryMapper do
   alias Ecto.Adapters.Neo4j.{Query, Condition, Helper}
 
+  @spec map(atom(), Ecto.Query.t(), list(), Keyword.t()) :: Query.t()
   def map(operation, %Ecto.Query{} = query, unbound_params, opts) do
     case is_preload?(query.select) do
       true ->
@@ -11,7 +12,7 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     end
   end
 
-  @spec map(atom(), Ecto.Query.t(), [], Keyword.t()) :: Query.t()
+  @spec map_query(atom(), Ecto.Query.t(), [], Keyword.t()) :: Query.t()
   def map_query(operation, %Ecto.Query{} = query, unbound_params, opts) do
     neo4j_query =
       Query.new(operation)
@@ -72,7 +73,6 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     return = %Query.ReturnExpr{
       is_distinct?: map_distinct(query.distinct),
       fields: map_select(query.select)
-      # fields: query.select |> map_select() |> map_return_foreign_keys(query.sources)
     }
 
     neo4j_query
@@ -82,6 +82,7 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     |> Query.skip(map_offset(query.offset))
   end
 
+  @spec is_preload?(map()) :: bool
   defp is_preload?(%Ecto.Query.SelectExpr{expr: {:{}, [], [_, {:&, [], [0]}]}, fields: [_ | _]}) do
     true
   end
@@ -106,6 +107,7 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     end
   end
 
+  @spec map_preload(atom(), Ecto.Query.t(), list, Keyword.t()) :: Query.t()
   def map_preload(operation, query, unbound_params, _opts) do
     %{expr: {:{}, [], [field, {:&, [], [0]}]}, fields: _} = query.select
 
@@ -202,7 +204,7 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     |> Query.params(params)
   end
 
-  @spec map_join(Ecto.Query.JoinExpr.t(), map) ::
+  @spec map_join(map(), map) ::
           Ecto.Adapters.Neo4j.Condition.Relationship.clauses()
   def map_join(%Ecto.Query.JoinExpr{ix: source_idx, on: %{expr: true} = on}, unbound_params) do
     build_conditions(Map.merge(on, %{source_idx: source_idx}), unbound_params)
@@ -361,46 +363,6 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
   def map_offset(_) do
     nil
   end
-
-  # @spec map_return_foreign_keys(list(), tuple) :: list()
-  # defp map_return_foreign_keys(return_fields, sources) do
-  #   schemas =
-  #     sources
-  #     |> Tuple.to_list()
-  #     |> Enum.map(fn {_, schema, _} -> schema end)
-
-  #   fk_list = Enum.flat_map(schemas, &list_foreign_keys/1)
-
-  #   Enum.map(return_fields, fn
-  #     %Query.FieldExpr{name: field_name} = field ->
-  #       case field_name in fk_list do
-  #         true ->
-  #           %Query.ValueExpr{
-  #             variable: field.variable,
-  #             name: field_name,
-  #             value: "00000000-0000-0000-0000-000000000000"
-  #           }
-
-  #         _ ->
-  #           field
-  #       end
-
-  #     other ->
-  #       other
-  #   end)
-  # end
-
-  # defp list_foreign_keys(schema) do
-  #   Enum.reduce(schema.__schema__(:associations), [], fn assoc, fk_list ->
-  #     case schema.__schema__(:association, assoc) do
-  #       %Ecto.Association.BelongsTo{owner_key: foreign_key} ->
-  #         [foreign_key | fk_list]
-
-  #       _ ->
-  #         fk_list
-  #     end
-  #   end)
-  # end
 
   ######################################################################
   @spec build_return_fields(map | tuple) :: [Query.FieldExpr.t() | Query.AggregateExpr.t()]

@@ -3,11 +3,6 @@ defmodule Ecto.Adapters.Neo4j.Schema do
 
   defmacro outgoing_relationship(name, queryable, opts \\ []) do
     quote do
-      # fk =
-      #   unquote(name)
-      #   |> Atom.to_string()
-      #   |> Kernel.<>("_uuid")
-      #   |> String.to_atom()
       opts = unquote(opts)
 
       if Keyword.get(opts, :unique, false) do
@@ -38,6 +33,7 @@ defmodule Ecto.Adapters.Neo4j.Schema do
     end
   end
 
+  @spec build_foreign_key(atom()) :: atom()
   def build_foreign_key(name) do
     name
     |> Atom.to_string()

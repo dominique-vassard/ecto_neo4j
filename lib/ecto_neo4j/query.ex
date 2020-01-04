@@ -14,7 +14,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
     defstruct [:index, :variable, :start, :end, :type]
 
     @type t :: %__MODULE__{
-            index: integer(),
+            index: nil | integer(),
             variable: String.t(),
             start: NodeExpr.t(),
             end: NodeExpr.t(),
@@ -38,7 +38,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
     defstruct [:name, :variable, :value]
 
     @type t :: %__MODULE__{
-            name: String.t(),
+            name: atom(),
             variable: String.t(),
             value: any
           }
@@ -104,7 +104,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
     defstruct [:expr, on_create: [], on_update: []]
 
     @type t :: %__MODULE__{
-            expr: Query.entity_expr(),
+            expr: Ecto.Adapters.Neo4j.Query.entity_expr(),
             on_create: [SetExpr.t()],
             on_update: [SetExpr.t()]
           }
@@ -149,7 +149,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
   @type t :: %__MODULE__{
           operation: atom(),
           match: [entity_expr],
-          merge: [Merge.Expr.t()],
+          merge: [MergeExpr.t()],
           delete: [entity_expr],
           where: nil | Ecto.Adapters.Neo4j.Condition.t(),
           set: [SetExpr.t()],
@@ -209,7 +209,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
     %{query | match: query.match ++ match}
   end
 
-  @spec merge(Query.t(), MergeExpr.t()) :: Query.t()
+  @spec merge(Query.t(), [MergeExpr.t()]) :: Query.t()
   def merge(query, merge) when is_list(merge) do
     %{query | merge: query.merge ++ merge}
   end
@@ -361,13 +361,6 @@ defmodule Ecto.Adapters.Neo4j.Query do
           ""
       end
 
-    # if query.operation == :delete_all do
-    #   query.match
-    #   |> stringify_delete()
-    # else
-    #   ""
-    # end
-
     cql_match =
       if String.length(match) > 0 do
         """
@@ -481,6 +474,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
       "-[#{variable}#{cql_type}]->" <> stringify_match_entity(end_node)
   end
 
+  @spec stringify_merges([MergeExpr.t()]) :: String.t()
   def stringify_merges(merges) do
     merges
     |> Enum.map(&stringify_merge/1)
@@ -488,7 +482,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
   end
 
   @spec stringify_merge(nil | MergeExpr.t()) :: String.t()
-  def stringify_merge(%MergeExpr{expr: entity, on_create: create_sets, on_update: update_sets}) do
+  defp stringify_merge(%MergeExpr{expr: entity, on_create: create_sets, on_update: update_sets}) do
     cql_create =
       if length(create_sets) > 0 do
         sets =
@@ -523,7 +517,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
     """
   end
 
-  def stringify_merge(_) do
+  defp stringify_merge(_) do
     ""
   end
 
