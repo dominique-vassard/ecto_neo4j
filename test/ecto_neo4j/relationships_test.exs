@@ -405,8 +405,6 @@ defmodule EctoNeo4j.RelationshipsTest do
       add_data()
 
       rel_data = %{when: ~D[2018-02-01]}
-      empy_rel = %{}
-      uuid = "zefzef-frzegz"
 
       query =
         from u in User,
@@ -464,12 +462,34 @@ defmodule EctoNeo4j.RelationshipsTest do
 
       comment_uuid = List.first(user_data.wrote_comment).uuid
 
-      comment =
-        TestRepo.get(Comment, comment_uuid)
-        |> Ecto.Adapters.Neo4j.preload([:has_comment, :wrote_comment])
-        |> Ecto.Changeset.change()
-        |> Ecto.Changeset.put_assoc(:wrote_comment, new_user)
-        |> Ecto.Adapters.Neo4j.update(TestRepo)
+      assert {:ok,
+              %EctoNeo4j.Integration.Comment{
+                has_comment: %EctoNeo4j.Integration.Post{
+                  rel_read: nil,
+                  rel_wrote: nil,
+                  text: "This is the first",
+                  title: "First",
+                  user_read_post_uuid: nil,
+                  uuid: "ae830851-9e93-46d5-bbf7-23ab99846497",
+                  wrote_post_uuid: nil
+                },
+                has_comment_uuid: "ae830851-9e93-46d5-bbf7-23ab99846497",
+                rel_has: %{},
+                rel_wrote: %{"when" => ~D[2018-06-18]},
+                text: "This a comment from john Doe",
+                uuid: "2be39329-d9b5-4b85-a07f-ee9a2997a8ef",
+                wrote_comment: %EctoNeo4j.Integration.User{
+                  first_name: "Jack",
+                  last_name: "Allops",
+                  uuid: "ec1741ba-28f2-47fc-8a96-a3c5e24c42da"
+                },
+                wrote_comment_uuid: "ec1741ba-28f2-47fc-8a96-a3c5e24c42da"
+              }} =
+               TestRepo.get(Comment, comment_uuid)
+               |> Ecto.Adapters.Neo4j.preload([:has_comment, :wrote_comment])
+               |> Ecto.Changeset.change()
+               |> Ecto.Changeset.put_assoc(:wrote_comment, new_user)
+               |> Ecto.Adapters.Neo4j.update(TestRepo)
 
       cql_check = """
       MATCH
@@ -505,14 +525,36 @@ defmodule EctoNeo4j.RelationshipsTest do
 
       comment_uuid = List.first(user_data.wrote_comment).uuid
 
-      comment =
-        TestRepo.get(Comment, comment_uuid)
-        # |> Ecto.Adapters.Neo4j.preload(:has_comment)
-        |> Ecto.Adapters.Neo4j.preload([:has_comment, :wrote_comment])
-        |> Ecto.Changeset.change()
-        |> Ecto.Changeset.put_assoc(:has_comment, post)
-        |> Ecto.Changeset.put_assoc(:wrote_comment, new_user)
-        |> Ecto.Adapters.Neo4j.update(TestRepo)
+      assert {:ok,
+              %EctoNeo4j.Integration.Comment{
+                has_comment: %EctoNeo4j.Integration.Post{
+                  rel_read: nil,
+                  rel_wrote: nil,
+                  text: "This is the second",
+                  title: "Second",
+                  user_read_post_uuid: nil,
+                  uuid: "727289bc-ec28-4459-a9dc-a51ee6bfd6ab",
+                  wrote_post_uuid: nil
+                },
+                has_comment_uuid: "727289bc-ec28-4459-a9dc-a51ee6bfd6ab",
+                rel_has: %{},
+                rel_wrote: %{"when" => ~D[2018-06-18]},
+                text: "This a comment from john Doe",
+                uuid: "2be39329-d9b5-4b85-a07f-ee9a2997a8ef",
+                wrote_comment: %EctoNeo4j.Integration.User{
+                  first_name: "Jack",
+                  last_name: "Allops",
+                  uuid: "ec1741ba-28f2-47fc-8a96-a3c5e24c42da"
+                },
+                wrote_comment_uuid: "ec1741ba-28f2-47fc-8a96-a3c5e24c42da"
+              }} =
+               TestRepo.get(Comment, comment_uuid)
+               # |> Ecto.Adapters.Neo4j.preload(:has_comment)
+               |> Ecto.Adapters.Neo4j.preload([:has_comment, :wrote_comment])
+               |> Ecto.Changeset.change()
+               |> Ecto.Changeset.put_assoc(:has_comment, post)
+               |> Ecto.Changeset.put_assoc(:wrote_comment, new_user)
+               |> Ecto.Adapters.Neo4j.update(TestRepo)
 
       cql_check = """
       MATCH
@@ -538,22 +580,40 @@ defmodule EctoNeo4j.RelationshipsTest do
     test "belongs to - update from child (remove relationship)" do
       user_data = add_data()
 
-      new_user =
-        %User{
-          uuid: "ec1741ba-28f2-47fc-8a96-a3c5e24c42da",
-          first_name: "Jack",
-          last_name: "Allops"
-        }
-        |> TestRepo.insert!()
+      new_user = %User{
+        uuid: "ec1741ba-28f2-47fc-8a96-a3c5e24c42da",
+        first_name: "Jack",
+        last_name: "Allops"
+      }
+
+      TestRepo.insert!(new_user)
 
       comment_uuid = List.first(user_data.wrote_comment).uuid
 
-      comment =
-        TestRepo.get(Comment, comment_uuid)
-        |> Ecto.Adapters.Neo4j.preload([:has_comment, :wrote_comment])
-        |> Ecto.Changeset.change()
-        |> Ecto.Changeset.put_assoc(:wrote_comment, nil)
-        |> Ecto.Adapters.Neo4j.update(TestRepo)
+      assert {:ok,
+              %EctoNeo4j.Integration.Comment{
+                has_comment: %EctoNeo4j.Integration.Post{
+                  rel_read: nil,
+                  rel_wrote: nil,
+                  text: "This is the first",
+                  title: "First",
+                  user_read_post_uuid: nil,
+                  uuid: "ae830851-9e93-46d5-bbf7-23ab99846497",
+                  wrote_post_uuid: nil
+                },
+                has_comment_uuid: "ae830851-9e93-46d5-bbf7-23ab99846497",
+                rel_has: %{},
+                rel_wrote: %{"when" => ~D[2018-06-18]},
+                text: "This a comment from john Doe",
+                uuid: "2be39329-d9b5-4b85-a07f-ee9a2997a8ef",
+                wrote_comment: nil,
+                wrote_comment_uuid: nil
+              }} =
+               TestRepo.get(Comment, comment_uuid)
+               |> Ecto.Adapters.Neo4j.preload([:has_comment, :wrote_comment])
+               |> Ecto.Changeset.change()
+               |> Ecto.Changeset.put_assoc(:wrote_comment, nil)
+               |> Ecto.Adapters.Neo4j.update(TestRepo)
 
       cql_check = """
       MATCH

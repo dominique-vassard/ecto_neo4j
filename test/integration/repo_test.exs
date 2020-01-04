@@ -1123,8 +1123,6 @@ defmodule Ecto.Integration.RepoTest do
     assert %Post{id: id2} = TestRepo.insert!(%Post{title: "2"})
     assert %Post{id: id3} = TestRepo.insert!(%Post{title: "3"})
 
-    val = 34
-
     query =
       from(p in Post,
         where: p.title == "1" or p.title == "2",

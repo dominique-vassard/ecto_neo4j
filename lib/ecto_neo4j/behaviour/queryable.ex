@@ -1,5 +1,4 @@
 defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
-  alias Ecto.Adapters.Neo4j.QueryBuilder
   alias Ecto.Adapters.Neo4j.Query
 
   @chunk_size Application.get_env(:ecto_neo4j, Ecto.Adapters.Neo4j, chunk_size: 10_000)
@@ -36,29 +35,21 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
       ) do
     is_batch? = Keyword.get(preprocess, :batch, @batch)
     bolt_role = Keyword.get(preprocess, :bolt_role, @bolt_role)
-    is_preload? = is_preload?(query.select)
 
     opts =
       opts ++
         [
-          is_preload?: is_preload?,
           batch: is_batch?,
           chunk_size: Keyword.get(preprocess, :chunk_size, @chunk_size)
         ]
 
-    # {cypher_query, params} = QueryBuilder.build(query_type, query, sources, opts)
-
     conn = get_conn(pool, bolt_role)
 
-    # run_query(conn, query, cypher_query, params, is_batch?, is_preload?, query_type, opts)
-
-    ##### Alternate
     neo4j_query = Ecto.Adapters.Neo4j.QueryMapper.map(query_type, query, sources, opts)
 
     run_query(conn, neo4j_query, opts)
   end
 
-  #### ALTERNATE
   defp run_query(_, %Query{operation: operation, batch: %{is_batch?: true}} = query, _opts)
        when operation in [:update, :update_all, :delete, :delete_all] do
     case run_batch_query(query) do
@@ -190,168 +181,6 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
 
   defp format_response(_, %{records: results}, _) do
     {length(results), results}
-  end
-
-  #### END ALTERNATE
-
-  defp is_preload?(%Ecto.Query.SelectExpr{expr: {:{}, [], [_, {:&, [], [0]}]}, fields: [_ | _]}) do
-    true
-  end
-
-  defp is_preload?(_) do
-    false
-  end
-
-  # defp run_query(_, _, query, params, true, _is_preload?, query_type, opts)
-  #      when query_type in [:update, :delete] do
-  #   batch_type =
-  #     if query_type == :update do
-  #       :with_skip
-  #     else
-  #       :basic
-  #     end
-
-  #   case batch_query(query, params, batch_type, opts) do
-  #     {:ok, []} ->
-  #       nil
-
-  #     {:error, error} ->
-  #       raise Bolt.Sips.Exception, error.message
-  #   end
-  # end
-
-  defp run_query(
-         conn,
-         %Ecto.Query{from: %{source: {_, schema}}, select: select},
-         cypher_query,
-         params,
-         _is_batch?,
-         true,
-         query_type,
-         _opts
-       ) do
-    case query(cypher_query, params, conn: conn) do
-      {:ok, results} ->
-        res =
-          Enum.map(results.results, fn r ->
-            rels =
-              List.foldl(r["relationships"], %{}, fn rel, acc ->
-                Map.merge(acc, relationship_to_map(rel))
-              end)
-
-            r["n"].properties
-            |> Map.merge(rels)
-            |> format_results(select, schema, params.uuid)
-          end)
-
-        {length(res), format_final_result(query_type, res)}
-
-      {:error, error} ->
-        raise Bolt.Sips.Exception, error.message
-    end
-  end
-
-  defp run_query(
-         conn,
-         %Ecto.Query{from: %{source: {_, schema}}, select: select},
-         cypher_query,
-         params,
-         _is_batch?,
-         _is_preload?,
-         query_type,
-         _opts
-       ) do
-    case query(cypher_query, params, conn: conn) do
-      {:ok, results} ->
-        res = Enum.map(results.results, &format_results(&1, select, schema, nil))
-
-        {length(res), format_final_result(query_type, res)}
-
-      {:error, error} ->
-        raise Bolt.Sips.Exception, error.message
-    end
-  end
-
-  defp format_final_result(query_type, results) when query_type in [:update, :delete] do
-    case Enum.filter(results, fn v -> length(v) > 0 end) do
-      [] -> nil
-      result -> result
-    end
-  end
-
-  defp format_final_result(_, results) do
-    results
-  end
-
-  defp format_results(
-         raw_results,
-         %Ecto.Query.SelectExpr{fields: fields},
-         schema,
-         default_fk_data
-       ) do
-    results = manage_id(raw_results)
-
-    fks =
-      Ecto.Adapters.Neo4j.Behaviour.Schema.get_foreign_keys(schema)
-      |> Enum.map(&Atom.to_string/1)
-
-    fields
-    # |> Enum.map(fn {{:., _, [{:&, [], [0]}, field_atom]}, _, _} -> field_atom end)
-    |> Enum.map(&format_result_field/1)
-    |> Enum.into([], fn
-      "rel_" <> _ = key ->
-        {key, Map.get(results, key)}
-
-      key ->
-        case key in fks do
-          true -> {key, Map.get(results, key, default_fk_data)}
-          false -> {key, Map.fetch!(results, key)}
-        end
-    end)
-    |> Keyword.values()
-  end
-
-  defp format_results(_, nil, _, _) do
-    []
-  end
-
-  defp format_result_field(%Ecto.Query.Tagged{value: field}) do
-    resolve_field_name(field)
-  end
-
-  defp format_result_field({{:., _, [{:&, [], [0]}, _]}, _, _} = field) do
-    resolve_field_name(field)
-  end
-
-  defp format_result_field({aggregate, [], [field | distinct]}) do
-    cql_distinct =
-      if length(distinct) > 0 do
-        "DISTINCT "
-      else
-        ""
-      end
-
-    Atom.to_string(aggregate) <> "(#{cql_distinct}n." <> resolve_field_name(field) <> ")"
-  end
-
-  defp resolve_field_name({{:., _, [{:&, [], [0]}, field_name]}, [], []}) do
-    Atom.to_string(field_name)
-  end
-
-  defp manage_id(%{"nodeId" => node_id} = data) do
-    data
-    |> Map.put("id", node_id)
-    |> Enum.reject(fn {key, _} -> key == "nodeId" end)
-    |> Map.new()
-  end
-
-  defp manage_id(data) do
-    data
-  end
-
-  defp relationship_to_map(%{type: rel_type, properties: properties}) do
-    %{}
-    |> Map.put(("rel_" <> rel_type) |> String.downcase(), properties)
   end
 
   @doc """

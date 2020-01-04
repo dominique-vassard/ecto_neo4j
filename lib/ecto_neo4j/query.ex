@@ -481,20 +481,6 @@ defmodule Ecto.Adapters.Neo4j.Query do
       "-[#{variable}#{cql_type}]->" <> stringify_match_entity(end_node)
   end
 
-  # defp stringify_match_entity(%RelationshipExpr{
-  #        start: %NodeExpr{variable: start_variable, labels: [start_label]},
-  #        end: %NodeExpr{variable: end_variable, labels: [end_label]},
-  #        type: rel_type,
-  #        variable: variable
-  #      }) do
-  #   cql_type =
-  #     unless is_nil(rel_type) do
-  #       ":#{rel_type}"
-  #     end
-
-  #   "(#{start_variable}:#{start_label})-[#{variable}#{cql_type}]->(#{end_variable}:#{end_label})"
-  # end
-
   def stringify_merges(merges) do
     merges
     |> Enum.map(&stringify_merge/1)

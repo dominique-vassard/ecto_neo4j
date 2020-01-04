@@ -2,13 +2,14 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
   @moduledoc """
   Manage relationship operation
   """
-  # alias Bolt.Sips.Types.{Node, Relationship}
   alias Ecto.Adapters.Neo4j.Query
   alias Ecto.Adapters.Neo4j.Condition
 
   @doc """
-  Create the necessary relationship for the given schema data.
-  Retrieve all the associations and translate them into relationships.
+  Create the necessary relationships for the given schema data.
+  Extract data from the `has_many` and `has_one` associations and convert them into relationships.
+
+  Note that only 1-depth assocations are treated.
   """
   @spec process_relationships({:ok, Ecto.Schema.t()}) :: Ecto.Schema.t()
   def process_relationships({:ok, %{__struct__: _module} = data} = result) do
