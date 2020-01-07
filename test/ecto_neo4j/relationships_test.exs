@@ -286,7 +286,7 @@ defmodule EctoNeo4j.RelationshipsTest do
                rel_wrote: %{"when" => ~D[2018-01-01]},
                text: "This is the first",
                title: "First",
-               user_read_post_uuid: nil,
+               read_post_uuid: nil,
                uuid: "ae830851-9e93-46d5-bbf7-23ab99846497",
                wrote_post: %EctoNeo4j.Integration.User{
                  first_name: "John",
@@ -394,7 +394,7 @@ defmodule EctoNeo4j.RelationshipsTest do
                  rel_wrote: nil,
                  text: "This is the first",
                  title: "First",
-                 user_read_post_uuid: nil,
+                 read_post_uuid: nil,
                  wrote_post_uuid: nil,
                  uuid: "ae830851-9e93-46d5-bbf7-23ab99846497"
                }
@@ -469,7 +469,7 @@ defmodule EctoNeo4j.RelationshipsTest do
                   rel_wrote: nil,
                   text: "This is the first",
                   title: "First",
-                  user_read_post_uuid: nil,
+                  read_post_uuid: nil,
                   uuid: "ae830851-9e93-46d5-bbf7-23ab99846497",
                   wrote_post_uuid: nil
                 },
@@ -532,7 +532,7 @@ defmodule EctoNeo4j.RelationshipsTest do
                   rel_wrote: nil,
                   text: "This is the second",
                   title: "Second",
-                  user_read_post_uuid: nil,
+                  read_post_uuid: nil,
                   uuid: "727289bc-ec28-4459-a9dc-a51ee6bfd6ab",
                   wrote_post_uuid: nil
                 },
@@ -597,7 +597,7 @@ defmodule EctoNeo4j.RelationshipsTest do
                   rel_wrote: nil,
                   text: "This is the first",
                   title: "First",
-                  user_read_post_uuid: nil,
+                  read_post_uuid: nil,
                   uuid: "ae830851-9e93-46d5-bbf7-23ab99846497",
                   wrote_post_uuid: nil
                 },
@@ -662,7 +662,7 @@ defmodule EctoNeo4j.RelationshipsTest do
                     rel_wrote: %{},
                     text: "This is a new  post",
                     title: "Thrid",
-                    user_read_post_uuid: nil,
+                    read_post_uuid: nil,
                     uuid: "76633f38-cf5c-4987-8e59-ed2040f6b9c4",
                     wrote_post_uuid: "12903da6-5d46-417b-9cab-bd82766c868b"
                   }
@@ -735,7 +735,7 @@ defmodule EctoNeo4j.RelationshipsTest do
                     rel_wrote: %{when: ~D[2018-01-01]},
                     text: "This is the first",
                     title: "First",
-                    user_read_post_uuid: nil,
+                    read_post_uuid: nil,
                     uuid: "ae830851-9e93-46d5-bbf7-23ab99846497",
                     wrote_post_uuid: "12903da6-5d46-417b-9cab-bd82766c868b"
                   }
@@ -781,7 +781,7 @@ defmodule EctoNeo4j.RelationshipsTest do
                 rel_wrote: %{"when" => ~D[2018-01-01]},
                 text: "This is the first",
                 title: "First",
-                user_read_post_uuid: nil,
+                read_post_uuid: nil,
                 uuid: "ae830851-9e93-46d5-bbf7-23ab99846497",
                 wrote_post: %EctoNeo4j.Integration.User{
                   first_name: "Jack",
@@ -825,7 +825,7 @@ defmodule EctoNeo4j.RelationshipsTest do
                 rel_wrote: %{"when" => ~D[2020-03-04]},
                 text: "This is the first",
                 title: "First",
-                user_read_post_uuid: nil,
+                read_post_uuid: nil,
                 uuid: "ae830851-9e93-46d5-bbf7-23ab99846497",
                 wrote_post: %EctoNeo4j.Integration.User{
                   first_name: "John",
