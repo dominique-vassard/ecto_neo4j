@@ -6,8 +6,8 @@
 EctoNeo4j is designed to ease the use of Neo4j in elixir and provides an adapter for Ecto.  
 It allows to works with `schema` and to use the classic `Ecto.Repo` functions.  
 
-BUT, as `Ecto.Schema` is relational-database oriented and Neo4j is a graph database, there is some limitations:
-`join`, `assoc`, `preload` related features are not available in Neo4j because they don't make sense in graph model.
+Kepp in mind that `Ecto.Schema` is relational-database oriented, then some graph-specific operations have to be emulated with the Ecto terms, especially
+`join`, `assoc`, `preload`.
 
 ## Installation
 Add `ecto` and `ecto_neo4j` to your dependencies:  
@@ -48,20 +48,86 @@ end
 ## Ecto is designed for relational database but Neo4j is a graph database
 Then not all of Ecto features are available in `EctoNeo4j`, either because they don't have their counterparts 
 in Cypher Neo4j or because they don't make sense in Neo4j.  
-The main feature unavailable in EctoNeo4j are those related to joins: `join`, `assoc`, `preload`, `foreign_key`, etc.  
-Because of this limitations, EctoNeo4j is useful for one-node or one-label operations.   
-
-## The special case of `id`s
-As you may know, it is strongly recommended to NOT rely on Neo4j internal ids, as they can be reaffected.  
-With Ecto.Schema, `id` can be managed automatically. `EctoNeo4j` allows to not change this way of working by
-using a property called `nodeId` on created/updated nodes. This proprety is automatically converted into `id` when 
-retrieving data from database.
+As an effeot to have a usable package, Ecto feature like `join`, `assoc`, etc. are used to manage relationships.    
 
 # Usage
 ## Schema
-Every schema features can be used as usual but keep in mind that all those related to joins will be irrelevants, this includes:
-`has_many`, `has_one`, `belongs_to`, `many_to_many`.  
-`prefix` is not available as there is no counterpart in Neo4j (yet, but maybe in version 4 with the multiple databases).
+### Reserved field: id
+As you may know, Neo4j uses a feild named `id` toi manage its internal identifiers. It is then strongly recommended to not use it in your schemas.  
+
+### Defining schema
+To define a schema designed to be used with ECtoNeo4j, it is recommended to use `Ecto.Adapters.Neo4j.Schema` as it :  
+  - provides a primary key named `:uuid` to avoid conflic with Neo4j internal identifiers
+  - provides 2 macros to manage relationships: `outgoing_relationship/2 (and /3)` and `incoming_relationship/2`
+  - allows to not use `has_*` and `belongs_to` functions
+
+Note that `many_to_many` is not covered as its mangement is not possible yet.
+
+#### Relationships
+Relationships can be defined via: `outgoing_relationship` and `incoming_relationship`.
+
+`outgoing_relationship` takes 3 parameters:
+  - a name which is an atom formated as [relationship_type]_[child_schema_name]
+  - the related schema
+  - [optional] the options. For now only `:unique` (bool) is available. It defiens wether many child nodes can be linked to parent node (unique: false, the default) or just one (unique: true)
+
+`incoming_relationship` takes 2 parameters:
+  - a name which is an atom formated as [relationship_type]_[child_schema_name]
+  - the related schema
+
+Relationships properties are a field in child schema. This field must be named `rel_[relationship_type]` and is a map.
+
+Note that the `name` has to be the same in parent and child schema.
+
+### Example
+Considering the following graph schema:
+```
+(User)-[:WROTE]->(Post)
+(User)-(:READ)->(Post)
+(User)-[:HAS]->(Profile)
+```
+where a User can read / wrote mutiple posts, but has only one profile.  
+
+This tranlates as:  
+```elixir
+defmodule MyApp.User do
+  use Ecto.Adapters.Neo4j.Schema
+
+  schema "User" do
+    field :first_name, :string
+    field :last_name, :string
+
+    outgoing_relationship :has_userprofile, MyApp.UserProfil, unique: true
+    outgoing_relationship(:wrote_post, MyApp.Post)
+    outgoing_relationship :read_post, MyApp.Post
+  end
+end
+
+defmodule MyApp.Profile do
+  use Ecto.Adapters.Neo4j.Schema
+
+  schema "UserProfile" do
+    field :avatar, :string
+    field :rel_has, :map
+
+    incoming_relationship :has_profile, MyApp.User
+  end
+end
+
+defmodule MyApp.Post do
+  use Ecto.Adapters.Neo4j.Schema
+
+  schema "Post" do
+    field :title, :string
+    field :text, :string
+    field :rel_wrote, :map
+    field :rel_read, :map
+
+    incoming_relationship :wrote_post, MyApp.User
+    incoming_relationship :read_post, MyApp.User
+  end
+end
+```
 
 ## Migration
 All features work, but with some subtleties for some.  
@@ -95,6 +161,7 @@ As you expect, none all `Ecto.Query` are available, here is a list of whan can b
   - `dynamic`
   - `first`
   - `from` which is `MATCH` in cypher
+  - `join` to manage relationships
   - `last`
   - `limit`
   - `offset` which is `SKIP` in cypher
@@ -104,6 +171,72 @@ As you expect, none all `Ecto.Query` are available, here is a list of whan can b
   - `where`
 
 For very specific operation like `CONTAINS`, `START_WITH`, etc. I encourage you to use [query fragment](https://hexdocs.pm/ecto/Ecto.Query.API.html#fragment/1)
+
+### Working with relationships (associations in Ecto)
+When you ant to work on relationship, you have to use Neo4j's adapter specific functions and not the Ecto one. In fact, if you work with EctoNeo4j, it is recommedned to always use these functions instead of their Ecto counterparts.  
+The specific funtions are:
+  - `Ecto.Adapters.Neo4j.insert(repo, data, opts \\ [])`: creates nodes and creates relationship if required
+  - `Ecto.Adapters.Neo4j.preload(struct_or_structs_or_nil, preloads, opts \\ [])`: usage and goal are the same as `Repo.preload`
+  - `Ecto.Adapters.Neo4j.update(changeset, repo, opts \\ [])`: updates nodes and creates / removes / updates realtionships if needed
+
+The weird position of `repo` in the argument is to ease the piping.
+
+#### Inserting
+There is nothing special here, insert your data as you would do with classic Ecto associations. 
+
+#### Updating / Deleting
+For this kind of operation, [put_assoc](https://hexdocs.pm/ecto/Ecto.Changeset.html#put_assoc/4) has to used.
+
+#### Querying
+Because relationship are not citizens in the relational world, Ecto does not provide the ability to query them. In order to retrieve relationship data, you will have to query the node in order to feed the relationship field (prefixed by `rel_`).  
+To query a relationship, you can use `join` and `on` keywords. `join` allows you to specify the node to link, and `on` will have ALL clauses ti apply on relationship.
+
+Example:
+```elixir
+# Unspecified relationship
+from u in User,
+join: p in Post
+# will translates to:
+MATCH
+  (u:User)-[]->(:Post)
+RETURN
+  u
+# Beware of the multiple results?
+
+# Specific relationship (but without data)
+from u in User,
+join: p in Post,
+on: p.rel_wrote == ^%{}
+# will translates to:
+MATCH
+  (u:User)-[:WROTE]->(:Post)
+RETURN
+  u
+
+# Specific relationship (without data)
+from u in User,
+join: p in Post,
+on: p.rel_wrote == ^%{when: ~D[2019-12-12]}
+# will translates to:
+MATCH
+  (u:User)-[rel:WROTE]->(:Post)
+WHERE
+  rel.when = "2019-12-12"
+RETURN
+  u
+
+# Non existing relationship:
+from u in User,
+join: p in Post,
+on: is_nil(p.rel_wrote)
+# will translates to:
+MATCH
+  (u:User)
+WHERE
+  NOT (u)-[:WROTE]->(:Post)
+RETURN
+  u
+```
 
 ### About `update_all` and `delete_all`
 Because theses two operations can touch a large number of nodes, you can have them be performed as batch via the option `[batch: true]`.  
@@ -210,6 +343,7 @@ This option can be added in your configuration if you want the behaviour to happ
 ```
 
 # TODO
+[ ] Remove the `id` to `nodeId` conversion
 [x] Manage bolt role  
 [ ] Split test to allow bolt v1 testing  
 [ ] Support prefix? (is there any use case for this?)  
@@ -223,7 +357,8 @@ This option can be added in your configuration if you want the behaviour to happ
 [ ] Telemetry  
 [ ] insert_all performance
 [ ] stream
-[ ] `ecto.drop` should remove constraints and indexes()
+[x] `ecto.drop` should remove constraints and indexes()
+
 
 # Can I contribute?  
 Yes, you can! Please, do!  
