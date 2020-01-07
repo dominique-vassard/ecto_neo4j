@@ -1,6 +1,6 @@
 defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
   @moduledoc """
-  Manage relationship operation
+  Manage relationship operations
   """
   alias Ecto.Adapters.Neo4j.Query
   alias Ecto.Adapters.Neo4j.Condition
@@ -52,80 +52,63 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
   end
 
   defp manage_assoc(data, assoc, data_assoc) when is_list(data_assoc) do
-    Enum.each(data_assoc, &do_manage_assoc(data, assoc, &1))
+    Enum.each(data_assoc, fn d_assoc ->
+      {relationship, %{where: where, params: params}} =
+        build_relationship_and_clauses(data, d_assoc, assoc)
+
+      %{__struct__: child_schema} = d_assoc
+      %{__struct__: parent_schema} = data
+      rel_type = extract_relationship_type(assoc, parent_schema, child_schema)
+
+      rel_data = Map.fetch!(d_assoc, String.to_atom("rel_" <> String.downcase(rel_type)))
+      %{sets: sets, params: set_params} = build_set(rel_data, relationship, assoc)
+
+      merge_rel =
+        relationship
+        |> Map.put(:start, Map.drop(relationship.start, [:labels]))
+        |> Map.put(:end, Map.drop(relationship.end, [:labels]))
+
+      merge = %Query.MergeExpr{
+        expr: merge_rel,
+        on_create: sets
+      }
+
+      {cql, params} =
+        Query.new(:create)
+        |> Query.match([relationship.start, relationship.end])
+        |> Query.where(where)
+        |> Query.merge([merge])
+        |> Query.params(Map.merge(params, set_params))
+        |> Query.to_string()
+
+      Ecto.Adapters.Neo4j.query!(cql, params)
+    end)
   end
 
   defp manage_assoc(data, assoc, data_assoc) do
     manage_assoc(data, assoc, [data_assoc])
   end
 
-  @spec do_manage_assoc(Ecto.Schema.t(), atom, Ecto.Schema.t()) :: Bolt.Sips.Response.t()
-  defp do_manage_assoc(data, assoc, data_assoc) do
-    start_node = node_info(data)
-    end_node = node_info(data_assoc)
+  @doc """
+  Remove / add relationship.
 
-    rel_type =
-      assoc
-      |> Atom.to_string()
-      |> String.replace("_" <> String.downcase(end_node.label), "")
-      |> String.upcase()
+  For this to work, `has_one`, `has_many`, `belongs_to` declaration must have the option `on_replace: :delete`.
 
-    match = [
-      start_node.expr,
-      end_node.expr
-    ]
+  `:update` will add a new relationship (without its data, they will be added later during the update process)
+  `:replace` will remove the relationship
 
-    relationship = %Query.RelationshipExpr{
-      start: Map.put(start_node.expr, :labels, nil),
-      end: Map.put(end_node.expr, :labels, nil),
-      type: rel_type,
-      variable: "rel"
-    }
+  This function should not be called directly but through `Ecto.Adapters.Neo4j.update/3`
 
-    %{sets: sets, params: params} =
-      Map.fetch!(data_assoc, String.to_atom("rel_" <> String.downcase(rel_type)))
-      |> Enum.reduce(%{sets: [], params: %{}}, fn {prop_name, value}, data ->
-        set = %Query.SetExpr{
-          field: %Query.FieldExpr{
-            variable: relationship.variable,
-            name: prop_name
-          },
-          value: Atom.to_string(prop_name)
-        }
+  ## Example
+      user = MyRepo.get!(User, user_uuid)
+      post = MyRepo.get!(Post, post_uuid)
 
-        params = Map.put(%{}, prop_name, value)
+      # This will set the relationship (User)-[:WROTE]->(Post)
+      update(:update, user, post, :wrote_post)
 
-        %{data | sets: data.sets ++ [set], params: Map.merge(data.params, params)}
-      end)
-
-    wheres =
-      (build_where(start_node) ++ build_where(end_node))
-      |> Enum.reduce(%{condition: nil, params: %{}}, fn where, acc ->
-        %{
-          acc
-          | condition: Condition.join_conditions(acc.condition, where.condition, :and),
-            params: Map.merge(acc.params, where.params)
-        }
-      end)
-
-    params = Map.merge(params, wheres.params)
-
-    merge = %Query.MergeExpr{
-      expr: relationship,
-      on_create: sets
-    }
-
-    {cql, params} =
-      Query.new(:merge)
-      |> Query.match(match)
-      |> Query.merge([merge])
-      |> Query.where(wheres.condition)
-      |> Query.params(params)
-      |> Query.to_string()
-
-    Ecto.Adapters.Neo4j.query!(cql, params)
-  end
-
+      # This will remove the relationship (User)-[:WROTE]->(Post)
+      update(:delete, user, post, :wrote_post)
+  """
   @spec update(:replace | :update, Ecto.Schema.t(), atom | Ecto.Schema.t(), atom()) ::
           nil | Ecto.Schema.t()
   def update(:update, node1_data, node2_data, rel_name) do
@@ -173,6 +156,11 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
     nil
   end
 
+  @doc """
+  Update relationship data.
+
+  This function should not be called directly but through `Ecto.Adapters.Neo4j.update/3`
+  """
   @spec update_data(atom, atom(), map(), Ecto.Schema.t()) :: Bolt.Sips.Response.t()
   def update_data(node_schema, rel_field, changes, data) do
     "rel_" <> rel_type = Atom.to_string(rel_field)
@@ -189,24 +177,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
         {relationship, %{where: where, params: params}} =
           build_relationship_and_clauses(data, queryable, assoc)
 
-        %{sets: sets, params: set_params} =
-          Enum.reduce(changes, %{sets: [], params: %{}}, fn {field, value}, sets_data ->
-            bound_name = relationship.variable <> "_" <> Atom.to_string(field)
-
-            set = %Query.SetExpr{
-              field: %Query.FieldExpr{
-                variable: relationship.variable,
-                name: field
-              },
-              value: bound_name
-            }
-
-            %{
-              sets_data
-              | sets: sets_data.sets ++ [set],
-                params: Map.put(sets_data.params, String.to_atom(bound_name), value)
-            }
-          end)
+        %{sets: sets, params: set_params} = build_set(changes, relationship, assoc)
 
         {cql, params} =
           Query.new(:update)
@@ -225,7 +196,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
 
   @spec build_relationship_and_clauses(Ecto.Schema.t(), atom | Ecto.Schema.t(), atom()) ::
           {Query.RelationshipExpr.t(), map}
-  def build_relationship_and_clauses(node1_data, node2_data, rel_name) do
+  defp build_relationship_and_clauses(node1_data, node2_data, rel_name) do
     n1_data = node_info(node1_data)
     n2_data = node_info(node2_data)
 
@@ -264,22 +235,17 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
 
   @spec extract_relationship_type(atom(), atom(), atom()) :: String.t()
   defp extract_relationship_type(rel_name, queryable, node_schema) do
-    rel_type =
-      String.replace(
-        Atom.to_string(rel_name),
-        "_" <> String.downcase(queryable.__schema__(:source)),
-        ""
-      )
+    str_rel_name = Atom.to_string(rel_name)
 
-    if rel_type == Atom.to_string(rel_name) do
-      String.replace(
-        Atom.to_string(rel_name),
-        "_" <> String.downcase(node_schema.__schema__(:source)),
-        ""
-      )
-    else
-      rel_type
-    end
+    to_replace =
+      if String.ends_with?(str_rel_name, String.downcase(queryable.__schema__(:source))) do
+        String.downcase(queryable.__schema__(:source))
+      else
+        String.downcase(node_schema.__schema__(:source))
+      end
+
+    str_rel_name
+    |> String.replace("_" <> to_replace, "")
     |> String.upcase()
   end
 
@@ -327,6 +293,27 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
       %{
         condition: condition,
         params: Map.put(%{}, String.to_atom(field_var), Map.fetch!(node_data.data, pk))
+      }
+    end)
+  end
+
+  @spec build_set(map(), Query.RelationshipExpr.t(), atom) :: map
+  defp build_set(changes, %Query.RelationshipExpr{variable: rel_variable}, assoc_field) do
+    Enum.reduce(changes, %{sets: [], params: %{}}, fn {field, value}, sets_data ->
+      bound_name = rel_variable <> "_" <> Atom.to_string(assoc_field)
+
+      set = %Query.SetExpr{
+        field: %Query.FieldExpr{
+          variable: rel_variable,
+          name: field
+        },
+        value: bound_name
+      }
+
+      %{
+        sets_data
+        | sets: sets_data.sets ++ [set],
+          params: Map.put(sets_data.params, String.to_atom(bound_name), value)
       }
     end)
   end

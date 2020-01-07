@@ -1,6 +1,36 @@
 defmodule Ecto.Adapters.Neo4j.Behaviour.Repo do
   alias Ecto.Adapters.Neo4j.Query
 
+  defmodule PreloadInfo do
+    defstruct [:name, :upward?, :queryable, :unique?, :foreign_key, :search_key]
+
+    @type t :: %__MODULE__{
+            name: atom(),
+            upward?: boolean(),
+            queryable: module(),
+            unique?: boolean(),
+            foreign_key: atom(),
+            search_key: atom()
+          }
+  end
+
+  @doc """
+  Preloads all associations on the given struct or structs.
+
+  Unsupported features:
+    - Nested associaiton preloads
+    - custom query preloads
+
+  ## Examples
+
+      # Use a single atom to preload an association
+      posts = Repo.preload posts, :comments
+
+      # Use a list of atoms to preload multiple associations
+      posts = Repo.preload posts, [:comments, :authors]
+  """
+  @spec preload(nil | [Ecto.Schema.t()] | Ecto.Schema.t(), atom | [atom], Keyword.t()) ::
+          nil | nil | [Ecto.Schema.t()] | Ecto.Schema.t()
   def preload(struct_or_structs_or_nil, preloads, opts \\ [])
 
   def preload(nil, _preloads, _opts) do
@@ -29,24 +59,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Repo do
     Enum.reduce(preloads, base_struct, fn preload, struct ->
       schema = struct.__struct__
 
-      preload_info =
-        case schema.__schema__(:association, preload) do
-          %Ecto.Association.BelongsTo{queryable: queryable} ->
-            %{
-              name: preload,
-              is_upward?: true,
-              queryable: queryable,
-              is_unique?: true
-            }
-
-          %Ecto.Association.Has{queryable: queryable} ->
-            %{
-              name: preload,
-              is_upward?: false,
-              queryable: queryable,
-              is_unique?: false
-            }
-        end
+      preload_info = preload_info(preload, schema.__schema__(:association, preload))
 
       node_schema = %Query.NodeExpr{
         variable: "n_s",
@@ -59,7 +72,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Repo do
       }
 
       schema_name =
-        if preload_info.is_upward? do
+        if preload_info.upward? do
           schema
         else
           preload_info.queryable
@@ -79,23 +92,21 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Repo do
       }
 
       relationship =
-        if preload_info.is_upward? do
+        if preload_info.upward? do
           %{bare_relationship | start: node_queryable, end: node_schema}
         else
           %{bare_relationship | start: node_schema, end: node_queryable}
         end
 
-      primary_key = schema.__schema__(:primary_key) |> List.first()
-
       condition = %Ecto.Adapters.Neo4j.Condition{
         source: "n_s",
-        field: primary_key,
+        field: preload_info.search_key,
         operator: :==,
-        value: Atom.to_string(primary_key),
+        value: Atom.to_string(preload_info.search_key),
         conditions: nil
       }
 
-      params = Map.put(%{}, primary_key, Map.fetch!(struct, primary_key))
+      params = Map.put(%{}, preload_info.search_key, Map.fetch!(struct, preload_info.search_key))
 
       fields =
         Enum.map(preload_info.queryable.__schema__(:fields), fn field ->
@@ -119,47 +130,44 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Repo do
     end)
   end
 
-  defp build_struct(
-         struct,
-         %{is_upward?: true, is_unique?: true} = preload_info,
-         results,
-         relationship_name
-       ) do
-    parent_pk = preload_info.queryable.__schema__(:primary_key) |> List.first()
+  @spec preload_info(atom, map) :: PreloadInfo.t()
+  defp preload_info(preload, %Ecto.Association.BelongsTo{} = preload_data) do
+    %PreloadInfo{
+      name: preload,
+      upward?: true,
+      queryable: preload_data.queryable,
+      unique?: true,
+      foreign_key: preload_data.owner_key,
+      search_key: preload_data.related_key
+    }
+  end
 
-    foreign_key =
-      preload_info.name
-      |> Atom.to_string()
-      |> Kernel.<>("_uuid")
-      |> String.to_atom()
+  defp preload_info(preload, %Ecto.Association.Has{} = preload_data) do
+    %PreloadInfo{
+      name: preload,
+      upward?: false,
+      queryable: preload_data.queryable,
+      unique?: false,
+      foreign_key: preload_data.related_key,
+      search_key: preload_data.owner_key
+    }
+  end
 
+  @spec build_struct(Ecto.Schema.t(), PreloadInfo.t(), Bolt.Sips.Response.t(), String.t()) ::
+          Ecto.Schema.t()
+  defp build_struct(struct, %{upward?: true, unique?: true} = preload_info, results, rel_name) do
     result = List.first(results.results)
 
     build_unique_struct(struct, preload_info, results.records)
+    |> add_relationship_data(result, rel_name)
     |> Map.put(
-      String.to_atom(relationship_name),
-      Map.fetch!(result, relationship_name).properties
+      preload_info.foreign_key,
+      Map.fetch!(result, "n_q." <> Atom.to_string(preload_info.search_key))
     )
-    |> Map.put(foreign_key, Map.fetch!(result, "n_q." <> Atom.to_string(parent_pk)))
   end
 
-  defp build_struct(
-         struct,
-         %{is_upward?: false, is_unique?: false} = preload_info,
-         results,
-         relationship_name
-       ) do
-    # build_multiple_structs(struct, preload_info, results.records)
-
+  defp build_struct(struct, %{upward?: false, unique?: false} = preload_info, results, rel_name) do
     related_fields = preload_info.queryable.__schema__(:fields)
-
-    foreign_key =
-      preload_info.name
-      |> Atom.to_string()
-      |> Kernel.<>("_uuid")
-      |> String.to_atom()
-
-    parent_pk = struct.__struct__.__schema__(:primary_key) |> List.first()
 
     relateds =
       Enum.map(results.records, fn record ->
@@ -170,17 +178,15 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Repo do
           |> Map.new()
 
         struct(preload_info.queryable, fields)
-        |> Map.put(
-          String.to_atom(relationship_name),
-          Map.fetch!(result, relationship_name).properties
-        )
-        |> Map.put(foreign_key, Map.fetch!(struct, parent_pk))
+        |> add_relationship_data(result, rel_name)
+        |> Map.put(preload_info.foreign_key, Map.fetch!(struct, preload_info.search_key))
       end)
 
     struct
     |> Map.put(preload_info.name, relateds)
   end
 
+  @spec build_unique_struct(Ecto.Schema.t(), PreloadInfo.t(), list()) :: Ecto.Schema.t()
   defp build_unique_struct(struct, %{name: preload, queryable: queryable}, data) do
     related_fields = queryable.__schema__(:fields)
 
@@ -195,26 +201,12 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Repo do
     |> Map.put(preload, related)
   end
 
-  # defp build_multiple_structs(struct, %{name: preload, queryable: queryable}, data, rel_name) do
-  #   related_fields = queryable.__schema__(:fields)
-
-  #   relateds =
-  #     Enum.map(data, fn record ->
-  #       fields = Enum.zip(related_fields, record)
-  #       struct(queryable, fields)
-  #     end)
-
-  #   # struct
-  #   # |> Map.put(preload, relateds)
-  # end
-
-  def is_upward_preload?(schema, preload) do
-    case schema.__schema__(:association, preload) do
-      %Ecto.Association.BelongsTo{} ->
-        false
-
-      %Ecto.Association.Has{} ->
-        true
-    end
+  @spec add_relationship_data(Ecto.Schema.t(), map, String.t()) :: Ecto.Schema.t()
+  defp add_relationship_data(struct, result, rel_name) do
+    struct
+    |> Map.put(
+      String.to_atom(rel_name),
+      Map.fetch!(result, rel_name).properties
+    )
   end
 end

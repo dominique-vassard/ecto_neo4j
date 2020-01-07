@@ -1,6 +1,8 @@
 defmodule Ecto.Adapters.Neo4j.Condition do
+  @moduledoc """
+  Reprensents an atomix WHERE clause
+  """
   @fields [:source, :field, :operator, :value, :conditions, join_operator: :and]
-  # @enforce_keys @fields
   defstruct @fields
 
   alias Ecto.Adapters.Neo4j.Condition
@@ -16,6 +18,9 @@ defmodule Ecto.Adapters.Neo4j.Condition do
 
   @valid_operators [:and, :or, :not, :==, :in, :>, :>=, :<, :<, :min, :max, :count, :sum, :avg]
 
+  @doc """
+  Join 2 conditions in one with the given operator
+  """
   @spec join_conditions(nil | Condition.t(), nil | Condition.t(), atom) :: nil | Condition.t()
   def join_conditions(condition1, condition2, operator \\ nil)
 
@@ -38,6 +43,9 @@ defmodule Ecto.Adapters.Neo4j.Condition do
     }
   end
 
+  @doc """
+  Converts Condition into a string in order to be used in query.
+  """
   @spec stringify_condition(nil | Condition.t()) :: String.t()
   def stringify_condition(nil) do
     ""

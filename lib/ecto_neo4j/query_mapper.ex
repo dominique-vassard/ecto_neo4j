@@ -1,6 +1,12 @@
 defmodule Ecto.Adapters.Neo4j.QueryMapper do
+  @moduledoc """
+  Mapper that converts an `Ecto.Query` struct into a `Ecto.Adapters.Neo4j.Query` one.
+  """
   alias Ecto.Adapters.Neo4j.{Query, Condition, Helper}
 
+  @doc """
+  Map Ecto.Query to Ecto.Adapters.Neo4j.Query
+  """
   @spec map(atom(), Ecto.Query.t(), list(), Keyword.t()) :: Query.t()
   def map(operation, %Ecto.Query{} = query, unbound_params, opts) do
     case is_preload?(query.select) do
@@ -12,6 +18,9 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     end
   end
 
+  @doc """
+  Map a non-preload `Ecto.Query` to `Ecto.Adapters.Neo4j.Query`
+  """
   @spec map_query(atom(), Ecto.Query.t(), [], Keyword.t()) :: Query.t()
   def map_query(operation, %Ecto.Query{} = query, unbound_params, opts) do
     neo4j_query =
@@ -59,6 +68,14 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
         map_update(update, unbound_params, clauses)
       end)
 
+    # MANAGE :delete_all operation
+    neo4j_query =
+      if operation == :delete_all do
+        Query.delete(neo4j_query, neo4j_query.match)
+      else
+        neo4j_query
+      end
+
     neo4j_query =
       case sets do
         nil ->
@@ -71,7 +88,7 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
       end
 
     return = %Query.ReturnExpr{
-      is_distinct?: map_distinct(query.distinct),
+      distinct?: map_distinct(query.distinct),
       fields: map_select(query.select)
     }
 
@@ -91,6 +108,10 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     false
   end
 
+  @doc """
+  Converts `EctoQuery.sources` into an `Ecto.Adapters.Neo4j.Query` compliant list of NodeExpr
+  which would be used in `MATCH`
+  """
   @spec map_from(tuple) :: [Query.NodeExpr.t()]
   def map_from(sources) when is_tuple(sources) do
     node_labels =
@@ -107,6 +128,9 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     end
   end
 
+  @doc """
+  Produce a `Neo4j.Query` to retrieve relationship (mapping of the ecto preload operation)
+  """
   @spec map_preload(atom(), Ecto.Query.t(), list, Keyword.t()) :: Query.t()
   def map_preload(operation, query, unbound_params, _opts) do
     %{expr: {:{}, [], [field, {:&, [], [0]}]}, fields: _} = query.select
@@ -204,6 +228,13 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     |> Query.params(params)
   end
 
+  @doc """
+  Map `join` into `Neo4j.Query` compliant relationship query.
+
+  `on` will be used to define filters.
+
+  Note that every realtionship filters have to be specified as `on` clauses
+  """
   @spec map_join(map(), map) ::
           Ecto.Adapters.Neo4j.Condition.Relationship.clauses()
   def map_join(%Ecto.Query.JoinExpr{ix: source_idx, on: %{expr: true} = on}, unbound_params) do
@@ -216,6 +247,9 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     |> Ecto.Adapters.Neo4j.Condition.Relationship.format()
   end
 
+  @doc """
+  Map `EctoQuery.wheres` to `Neo4j.Condition` which will used to build `WHERE` clauses.
+  """
   @spec map_where([map()] | map(), map(), %{params: map, where: Condition.t()}) :: %{
           params: map,
           where: Condition.t()
@@ -225,6 +259,9 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     |> Ecto.Adapters.Neo4j.Condition.Node.format(clauses)
   end
 
+  @doc """
+  Map `EctoQuery` distinct clause to a `Neo4j.Query` compliant one.
+  """
   @spec map_distinct(nil | map) :: boolean
   def map_distinct(%Ecto.Query.QueryExpr{}) do
     true
@@ -234,6 +271,10 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     false
   end
 
+  @doc """
+  Map `Ecto.Query.select` to `Neo4j.Query` list of return (nodes, relationships o fields)
+  which will be used in `RETURN`
+  """
   @spec map_select(nil | map) :: [
           Query.NodeExpr.t()
           | Query.RelationshipExpr.t()
@@ -278,6 +319,9 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     ]
   end
 
+  @doc """
+  Map `EctoQuery.order_bys` to `Neo4j.Query` compliant ones.
+  """
   @spec map_order_by([map]) :: [Query.OrderExpr.t()]
   def map_order_by([]) do
     []
@@ -305,6 +349,9 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     ]
   end
 
+  @doc """
+  Map `EctoQuery.updates` to `Neo4j.Query` list of Sets which will be used in `SET`s.§
+  """
   @spec map_update(map, map, %{params: map, set: [Query.SetExpr.t()]}) :: %{
           params: map,
           set: [Query.SetExpr.t()]
@@ -346,6 +393,9 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     value
   end
 
+  @doc """
+  Map `EctoQuery.limit` to `Neo4j.Query` compliant ones.
+  """
   @spec map_limit(nil | map) :: nil | integer()
   def map_limit(%Ecto.Query.QueryExpr{expr: limit}) do
     limit
@@ -355,6 +405,9 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     nil
   end
 
+  @doc """
+  Map `EctoQuery.order_bys` to `Neo4j.Query` compliant value to be used in `SKIP`.
+  """
   @spec map_offset(nil | map) :: nil | integer()
   def map_offset(%Ecto.Query.QueryExpr{expr: skip}) do
     skip
@@ -395,7 +448,7 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     %Query.AggregateExpr{
       operator: aggregate_operator,
       field: format_field(field),
-      is_distinct?: distinct == [:distinct]
+      distinct?: distinct == [:distinct]
     }
   end
 

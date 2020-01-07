@@ -63,6 +63,35 @@ defmodule Ecto.Adapters.Neo4j do
   defdelegate update(adapter_meta, schema_meta, fields, filters, returning, options),
     to: Ecto.Adapters.Neo4j.Behaviour.Schema
 
+  @doc """
+  Updates a changeset using its primary key.
+
+  This alternative to `Ecto.Repo.update` takes care of relationships, therefore they can be added / deleted.
+
+  Use `put_assoc` to update relationships.
+
+  ## Example
+
+    # Remove all relationship of a kind
+    MyRepo.get!(User, "ec1741ba-28f2-47fc-8a96-a3c5e24c42da")
+    |> Ecto.Adapters.Neo4j.preload(:wrote_post)
+    |> Ecto.Changeset.change()
+    |> put_assoc(:wrote_post, [])
+    |> Ecto.Adapters.Neo4j.update()
+
+    # Add a new relationship
+    new_post = MyRepo.insert(%Post{title: "New post"})
+
+    user = MyRepo.get!(User, "ec1741ba-28f2-47fc-8a96-a3c5e24c42da")
+    |> Ecto.Adapters.Neo4j.preload(:wrote_post)
+
+    user
+    |> Ecto.Changeset.change()
+    |> put_assoc(:wrote_post, user.wrote_post ++ [new_post])
+    |> Ecto.Adapters.Neo4j.update()
+  """
+  @spec update(Ecto.Changeset.t(), module, Keyword.t()) ::
+          {:ok, Ecto.Schema.t()} | {:error, any()}
   def update(changeset, repo, opts \\ [])
 
   def update(%Ecto.Changeset{valid?: true} = changeset, repo, opts) do
@@ -130,6 +159,10 @@ defmodule Ecto.Adapters.Neo4j do
     repo.update(changeset, opts)
   end
 
+  @doc """
+  Same as `update\3` but raises in case of error
+  """
+  @spec update!(Ecto.Changeset.t(), module, Keyword.t()) :: Ecto.Schema.t()
   def update!(changeset, repo, opts) do
     case update(changeset, repo, opts) do
       {:ok, result} ->

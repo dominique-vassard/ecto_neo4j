@@ -152,8 +152,6 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Schema do
             queryable: queryable,
             related_key: parent_key
           } ->
-            String.downcase(schema.__schema__(:source))
-
             rel_type =
               String.replace(
                 Atom.to_string(rel_field),

@@ -1,4 +1,7 @@
 defmodule Ecto.Adapters.Neo4j.Condition.Relationship do
+  @moduledoc """
+  Hold relationships-specific operations on `Ecto.Adapters.Neo4j.Condition`.
+  """
   alias Ecto.Adapters.Neo4j.Condition
   alias Ecto.Adapters.Neo4j.Query.{NodeExpr, RelationshipExpr}
 
@@ -8,6 +11,9 @@ defmodule Ecto.Adapters.Neo4j.Condition.Relationship do
           params: map()
         }
 
+  @doc """
+  Converts a `Ecto.Adapters.Neo4j.Condition` into `clauses` to be used in query building.
+  """
   @spec format(nil | map(), clauses) :: nil | clauses
   def format(condition, clauses \\ %{match: [], where: nil, params: %{}})
 

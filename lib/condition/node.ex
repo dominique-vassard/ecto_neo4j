@@ -1,4 +1,7 @@
 defmodule Ecto.Adapters.Neo4j.Condition.Node do
+  @moduledoc """
+  Hold node-specific operations on `Ecto.Adapters.Neo4j.Condition`.
+  """
   alias Ecto.Adapters.Neo4j.Condition
 
   @type clauses :: %{
@@ -6,6 +9,9 @@ defmodule Ecto.Adapters.Neo4j.Condition.Node do
           params: map()
         }
 
+  @doc """
+  Converts a `Ecto.Adapters.Neo4j.Condition` into `clauses` to be used in query building.
+  """
   @spec format(Condition.t(), clauses()) :: clauses()
   def format(condition, clauses \\ %{where: nil, params: %{}})
 
