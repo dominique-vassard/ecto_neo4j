@@ -5,7 +5,7 @@ defmodule EctoNeo4j.MixProject do
     [
       name: "EctoNeo4j",
       app: :ecto_neo4j,
-      version: "0.5.2",
+      version: "0.6.0",
       elixir: "~> 1.8",
       package: package(),
       description: "Ecto adapter for Neo4j graph database",
@@ -40,7 +40,25 @@ defmodule EctoNeo4j.MixProject do
   defp docs() do
     [
       main: "readme",
-      extras: ["README.md"]
+      extras: extras(),
+      groups_for_extras: groups_for_extras()
+    ]
+  end
+
+  defp extras do
+    [
+      "README.md",
+      "guide/up_and_running.md",
+      "guide/schema.md",
+      "guide/inserting.md",
+      "guide/querying.md",
+      "guide/updating_and_deleting.md"
+    ]
+  end
+
+  defp groups_for_extras do
+    [
+      Guide: ~r/guide\/[^\/]+\.md/
     ]
   end
 
@@ -50,6 +68,7 @@ defmodule EctoNeo4j.MixProject do
       {:ecto, "~> 3.2"},
       {:ecto_sql, "~> 3.2"},
       {:bolt_sips, "~> 2.0"},
+      {:credo, "~> 1.1.0", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.19", only: :dev, runtime: false},
       {:dialyxir, "~> 1.0.0-rc.4", only: [:dev], runtime: false}
     ]

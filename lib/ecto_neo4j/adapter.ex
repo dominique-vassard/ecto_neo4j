@@ -27,6 +27,9 @@ defmodule Ecto.Adapters.Neo4j do
   defdelegate execute(repo, query_meta, query_cache, sources, preprocess, opts \\ []),
     to: Ecto.Adapters.Neo4j.Behaviour.Queryable
 
+  defdelegate preload(struct_or_structs_or_nil, preloads, opts \\ []),
+    to: Ecto.Adapters.Neo4j.Behaviour.Repo
+
   defdelegate stream(adapter_meta, query_meta, query_cache, params, opts \\ []),
     to: Ecto.Adapters.Neo4j.Behaviour.Queryable
 
@@ -47,8 +50,139 @@ defmodule Ecto.Adapters.Neo4j do
   defdelegate insert(adapter_meta, schema_meta, fields, on_conflict, returning, options),
     to: Ecto.Adapters.Neo4j.Behaviour.Schema
 
+  @doc """
+  Insert data into database and create relationship if necessary.
+  """
+  @spec insert(Ecto.Repo.t(), Ecto.Schema.t() | Ecto.Changeset.t(), Keyword.t()) ::
+          Ecto.Schema.t()
+  def insert(repo, data, opts \\ []) do
+    repo.insert(data, opts)
+    |> Ecto.Adapters.Neo4j.Behaviour.Relationship.process_relationships()
+  end
+
+  @doc """
+  Same as insert/3 but raises in case of error.
+  """
+  def insert!(repo, data, opts \\ []) do
+    case insert(repo, data, opts) do
+      {:ok, result} -> result
+      {:error, error} -> raise error
+      error -> raise error
+    end
+  end
+
   defdelegate update(adapter_meta, schema_meta, fields, filters, returning, options),
     to: Ecto.Adapters.Neo4j.Behaviour.Schema
+
+  @doc """
+  Updates a changeset using its primary key.
+
+  This alternative to `Ecto.Repo.update` takes care of relationships, therefore they can be added / deleted.
+
+  Use `put_assoc` to update relationships.
+
+  ## Example
+
+    # Remove all relationship of a kind
+    MyRepo.get!(User, "ec1741ba-28f2-47fc-8a96-a3c5e24c42da")
+    |> Ecto.Adapters.Neo4j.preload(:wrote_post)
+    |> Ecto.Changeset.change()
+    |> put_assoc(:wrote_post, [])
+    |> Ecto.Adapters.Neo4j.update()
+
+    # Add a new relationship
+    new_post = MyRepo.insert(%Post{title: "New post"})
+
+    user = MyRepo.get!(User, "ec1741ba-28f2-47fc-8a96-a3c5e24c42da")
+    |> Ecto.Adapters.Neo4j.preload(:wrote_post)
+
+    user
+    |> Ecto.Changeset.change()
+    |> put_assoc(:wrote_post, user.wrote_post ++ [new_post])
+    |> Ecto.Adapters.Neo4j.update()
+  """
+  @spec update(Ecto.Changeset.t(), module, Keyword.t()) ::
+          {:ok, Ecto.Schema.t()} | {:error, any()}
+  def update(changeset, repo, opts \\ [])
+
+  def update(%Ecto.Changeset{valid?: true} = changeset, repo, opts) do
+    %{__struct__: schema} = changeset.data
+
+    %{changes: new_changes, new_data: new_data} =
+      Enum.reduce(changeset.changes, %{changes: changeset.changes, new_data: %{}}, fn {field,
+                                                                                       change},
+                                                                                      changes ->
+        cond do
+          field in schema.__schema__(:associations) and is_list(change) ->
+            new_data =
+              Enum.map(change, fn c ->
+                Ecto.Adapters.Neo4j.Behaviour.Relationship.update(
+                  c.action,
+                  changeset.data,
+                  c.data,
+                  field
+                )
+              end)
+              |> Enum.reject(&is_nil/1)
+
+            %{
+              changes
+              | changes: Map.drop(changes.changes, [field]),
+                new_data: Map.put(changes.new_data, field, new_data)
+            }
+
+          Kernel.match?("rel_" <> _, Atom.to_string(field)) ->
+            Ecto.Adapters.Neo4j.Behaviour.Relationship.update_data(
+              schema,
+              field,
+              change,
+              changeset.data
+            )
+
+            string_change =
+              Enum.map(change, fn {k, v} -> {Atom.to_string(k), v} end)
+              |> Map.new()
+
+            rel_data = Map.merge(Map.fetch!(changeset.data, field), string_change)
+
+            %{
+              changes
+              | changes: Map.drop(changes.changes, [field]),
+                new_data: Map.put(%{}, field, rel_data)
+            }
+
+          true ->
+            changes
+        end
+      end)
+
+    top_level_data =
+      Enum.reduce(new_data, changeset.data, fn {key, value}, data ->
+        Map.put(data, key, value)
+      end)
+
+    Map.put(changeset, :data, top_level_data)
+    |> Map.replace!(:changes, new_changes)
+    |> repo.update(opts)
+  end
+
+  def update(changeset, repo, opts) do
+    repo.update(changeset, opts)
+  end
+
+  @doc """
+  Same as `update\3` but raises in case of error
+  """
+  @spec update!(Ecto.Changeset.t(), module, Keyword.t()) :: Ecto.Schema.t()
+  def update!(changeset, repo, opts) do
+    case update(changeset, repo, opts) do
+      {:ok, result} ->
+        result
+
+      {:error, error} ->
+        raise error
+    end
+  end
 
   defdelegate delete(adapter_meta, schema_meta, filters, options),
     to: Ecto.Adapters.Neo4j.Behaviour.Schema

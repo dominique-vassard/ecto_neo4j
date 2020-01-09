@@ -1,27 +1,7 @@
 defmodule Ecto.Adapters.Neo4j.Cql.Node do
-  @doc """
-  Returns Cypher query to get one node given its uuid
-
-  ### Parameters
-
-    - node_label: The node label to search on
-
-  ### Example
-
-      iex> Ecto.Adapters.Neo4j.Cql.Node.get_by_uuid("Post")
-      "MATCH\\n  (n:Post)\\nWHERE\\n  n.uuid = {uuid}\\nRETURN\\n  n\\n"
+  @moduledoc """
+  Cypher query builder for Node
   """
-  @spec get_by_uuid(String.t()) :: String.t()
-  def get_by_uuid(node_label) do
-    """
-    MATCH
-      (n:#{node_label})
-    WHERE
-      n.uuid = {uuid}
-    RETURN
-      n
-    """
-  end
 
   @doc """
   Returns cypher query and params to insert a new node.
@@ -29,10 +9,10 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
   ## Example
 
       iex> data = %{title: "New title", uuid: "a-valid-uuid"}
-      iex> Ecto.Adapters.Neo4j.Cql.Node.insert("Post", data)
-      {"CREATE
-        (n:Post)
-      SET
+      iex> Ecto.Adapters.Neo4j.Cql.Node.insert("Post", data, [:uuid])
+      {"MERGE
+        (n:Post {uuid: {uuid}})
+      ON CREATE SET
         n.title = {title},  \\nn.uuid = {uuid}\\n
       RETURN
         n
@@ -40,17 +20,19 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
 
       # With returning fields specified
       iex> data = %{title: "New title", uuid: "a-valid-uuid"}
-      iex> Ecto.Adapters.Neo4j.Cql.Node.insert("Post", data, [:uuid])
-      {"CREATE
-        (n:Post)
-      SET
+      iex> Ecto.Adapters.Neo4j.Cql.Node.insert("Post", data, [:uuid], [:uuid])
+      {"MERGE
+        (n:Post {uuid: {uuid}})
+      ON CREATE SET
         n.title = {title},  \\nn.uuid = {uuid}\\n
       RETURN
         n.uuid AS uuid
       ", %{title: "New title", uuid: "a-valid-uuid"}}
   """
   @spec insert(String.t(), map(), list()) :: {String.t(), map()}
-  def insert(node_label, data, return \\ []) do
+  def insert(node_label, data, primary_keys, return \\ [])
+
+  def insert(node_label, data, [], return) do
     data_to_set =
       data
       |> Enum.map(fn {k, _} -> "n.#{k} = {#{k}}" end)
@@ -63,29 +45,56 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
         """
       end
 
-    return_fields =
-      if length(return) > 0 do
-        return
-        |> Enum.map(fn field -> "n.#{field} AS #{field}" end)
-        |> Enum.join(", ")
-      else
-        "n"
-      end
-
     cql = """
     CREATE
       (n:#{node_label})
     #{cql_set}
     RETURN
-      #{return_fields}
+      #{return_data(return)}
     """
 
     {cql, data}
   end
 
-  # def insert(node_label, data) do
+  def insert(node_label, data, primary_keys, return) do
+    pk_clause =
+      Enum.map(primary_keys, fn pk ->
+        "#{Atom.to_string(pk)}: {#{Atom.to_string(pk)}}"
+      end)
+      |> Enum.join(",")
 
-  # end
+    data_to_set =
+      data
+      |> Enum.map(fn {k, _} -> "n.#{k} = {#{k}}" end)
+
+    cql_set =
+      if length(data_to_set) > 0 do
+        """
+        ON CREATE SET
+          #{Enum.join(data_to_set, ",  \n")}
+        """
+      end
+
+    cql = """
+    MERGE
+      (n:#{node_label} {#{pk_clause}})
+    #{cql_set}
+    RETURN
+      #{return_data(return)}
+    """
+
+    {cql, data}
+  end
+
+  defp return_data(return) do
+    if length(return) > 0 do
+      return
+      |> Enum.map(fn field -> "n.#{field} AS #{field}" end)
+      |> Enum.join(", ")
+    else
+      "n"
+    end
+  end
 
   @doc """
   Returns cypher query to update node data.
@@ -129,12 +138,16 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
       end)
       |> Map.new()
 
+    cql_set =
+      if String.length(set) > 0 do
+        "SET\n  #{set}"
+      end
+
     cql = """
     MATCH
       (n:#{node_label})
     #{cql_where}
-    SET
-      #{set}
+    #{cql_set}
     RETURN
       n
     """
@@ -236,154 +249,6 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
     RETURN
       COUNT(n) AS nb_touched_nodes
     """
-  end
-
-  @doc """
-  Builds a cypher query for given `node_label`, `where`, `return` parts.
-
-  ## Example
-
-      # with default `where` and `return`
-      iex> Ecto.Adapters.Neo4j.Cql.Node.build_query(:match, "Post")
-      "MATCH
-        (n:Post)\\n\\n\\n\\n
-      RETURN
-        n\\n\\n\\n
-      "
-
-      # with everything defined
-      iex> node_label = "Post"
-      iex> where = "title = {title}"
-      iex> return = "n"
-      iex> Ecto.Adapters.Neo4j.Cql.Node.build_query(:match, node_label, where, "", return)
-      "MATCH
-        (n:Post)
-      WHERE
-      title = {title}\\n\\n\\n\\n
-      RETURN
-        n\\n\\n\\n
-      "
-
-      # for deleting
-      iex> Ecto.Adapters.Neo4j.Cql.Node.build_query(:delete, "Post")
-      "MATCH
-        (n:Post)\\n\\n\\n
-      DETACH DELETE
-        n\\n
-      RETURN
-        n\\n\\n\\n
-      "
-  """
-  @spec build_query(
-          :match | :delete | :update,
-          String.t(),
-          String.t(),
-          String.t(),
-          String.t(),
-          String.t(),
-          nil | integer(),
-          nil | integer()
-        ) ::
-          String.t()
-  def build_query(
-        query_type,
-        node_label,
-        where \\ "",
-        update \\ "",
-        return \\ "n",
-        order_by \\ "",
-        limit \\ nil,
-        skip \\ nil,
-        is_batch? \\ false
-      ) do
-    cql_where =
-      if String.length(where) > 0 do
-        """
-        WHERE
-        #{where}
-        """
-      end
-
-    cql_update =
-      if String.length(update) > 0 do
-        """
-        SET
-          #{update}
-        """
-      end
-
-    cql_order_by =
-      if String.length(order_by) > 0 do
-        """
-        ORDER BY
-          #{order_by}
-        """
-      end
-
-    cql_delete =
-      if query_type == :delete do
-        """
-        DETACH DELETE
-          n
-        """
-      end
-
-    cql_limit =
-      if limit do
-        """
-        LIMIT #{limit}
-        """
-      end
-
-    cql_skip =
-      if skip do
-        """
-        SKIP #{skip}
-        """
-      end
-
-    {return, cql_skip, cql_limit, cql_order_by, cql_batch} =
-      batch_cql(is_batch?, query_type, return, cql_skip, cql_limit, cql_order_by)
-
-    """
-    MATCH
-      (n:#{node_label})
-    #{cql_where}
-    #{cql_batch}
-    #{cql_update}
-    #{cql_delete}
-    RETURN
-      #{return}
-    #{cql_order_by}
-    #{cql_skip}
-    #{cql_limit}
-    """
-  end
-
-  defp batch_cql(false, _, return, skip, limit, order_by) do
-    {return, skip, limit, order_by, ""}
-  end
-
-  defp batch_cql(true, query_type, _, _, _, _) do
-    return = "COUNT(n) AS nb_touched_nodes"
-    skip = ""
-    limit = ""
-    order_by = ""
-
-    cql_batch_skip =
-      if query_type == :update do
-        "SKIP {skip}"
-      end
-
-    batch = """
-    WITH
-    n AS n
-    #{cql_batch_skip}
-    LIMIT
-    {limit}
-    """
-
-    {return, skip, limit, order_by, batch}
   end
 
   @doc """
@@ -499,7 +364,7 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
       iex> Ecto.Adapters.Neo4j.Cql.Node.create_non_null_constraint("Post", :title)
       "CREATE CONSTRAINT ON (n:Post) ASSERT exists(n.title)"
   """
-  @spec create_non_null_constraint(String.t(), String.t()) :: String.t()
+  @spec create_non_null_constraint(String.t(), atom()) :: String.t()
   def create_non_null_constraint(node_label, column) do
     manage_non_null_constraint(node_label, column, :create)
   end
@@ -512,12 +377,12 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
       iex> Ecto.Adapters.Neo4j.Cql.Node.drop_non_null_constraint("Post", :title)
       "DROP CONSTRAINT ON (n:Post) ASSERT exists(n.title)"
   """
-  @spec drop_non_null_constraint(String.t(), String.t()) :: String.t()
+  @spec drop_non_null_constraint(String.t(), atom()) :: String.t()
   def drop_non_null_constraint(node_label, column) do
     manage_non_null_constraint(node_label, column, :drop)
   end
 
-  @spec manage_non_null_constraint(String.t(), String.t(), :create | :drop) :: String.t()
+  @spec manage_non_null_constraint(String.t(), atom(), :create | :drop) :: String.t()
   defp manage_non_null_constraint(node_label, column, operation)
        when operation in [:create, :drop] do
     op =
@@ -545,7 +410,7 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
       RETURN description
       "
   """
-  @spec list_all_constraints(String.t(), nil | atom()) :: String.t()
+  @spec list_all_constraints(String.t(), atom()) :: String.t()
   def list_all_constraints(node_label, property \\ nil) do
     where_prop =
       if property do

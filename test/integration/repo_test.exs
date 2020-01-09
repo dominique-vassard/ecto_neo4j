@@ -167,7 +167,7 @@ defmodule Ecto.Integration.RepoTest do
     end
   end
 
-  @tag :supported
+  @tag :not_supported
   test "insert, update and delete with associated composite pk" do
     user = TestRepo.insert!(%User{})
     post = TestRepo.insert!(%Post{title: "post title", text: "post text"})

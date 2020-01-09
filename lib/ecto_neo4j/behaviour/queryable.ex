@@ -1,5 +1,5 @@
 defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
-  alias Ecto.Adapters.Neo4j.QueryBuilder
+  alias Ecto.Adapters.Neo4j.Query
 
   @chunk_size Application.get_env(:ecto_neo4j, Ecto.Adapters.Neo4j, chunk_size: 10_000)
               |> Keyword.get(:chunk_size)
@@ -17,16 +17,17 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
   end
 
   def prepare(:delete_all, query) do
-    {:nocache, {:delete, query}}
+    {:nocache, {:delete_all, query}}
   end
 
   def prepare(:update_all, query) do
-    {:nocache, {:update, query}}
+    {:nocache, {:update_all, query}}
   end
 
   def execute(
         %{pid: pool},
-        %{sources: {{_, _schema, _}}},
+        %{sources: _},
+        # %{sources: {{_, _schema, _}}},
         {:nocache, {query_type, query}},
         sources,
         preprocess,
@@ -36,25 +37,23 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
     bolt_role = Keyword.get(preprocess, :bolt_role, @bolt_role)
 
     opts =
-      opts ++ [batch: is_batch?, chunk_size: Keyword.get(preprocess, :chunk_size, @chunk_size)]
-
-    {cypher_query, params} = QueryBuilder.build(query_type, query, sources, opts)
+      opts ++
+        [
+          batch: is_batch?,
+          chunk_size: Keyword.get(preprocess, :chunk_size, @chunk_size)
+        ]
 
     conn = get_conn(pool, bolt_role)
 
-    run_query(conn, query, cypher_query, params, is_batch?, query_type, opts)
+    neo4j_query = Ecto.Adapters.Neo4j.QueryMapper.map(query_type, query, sources, opts)
+
+    run_query(conn, neo4j_query, opts)
   end
 
-  defp run_query(_, _, query, params, true, query_type, opts)
-       when query_type in [:update, :delete] do
-    batch_type =
-      if query_type == :update do
-        :with_skip
-      else
-        :basic
-      end
-
-    case batch_query(query, params, batch_type, opts) do
+  @spec run_query(atom, Query.t(), Keyword.t()) :: {integer(), nil | [[any()]]}
+  defp run_query(_, %Query{operation: operation, batch: %{is_batch?: true}} = query, _opts)
+       when operation in [:update, :update_all, :delete, :delete_all] do
+    case run_batch_query(query) do
       {:ok, []} ->
         nil
 
@@ -63,77 +62,128 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
     end
   end
 
-  defp run_query(conn, query, cypher_query, params, _is_batch?, query_type, _opts) do
-    case Bolt.Sips.query(conn, cypher_query, params) do
-      {:ok, results} ->
-        res = Enum.map(results.results, &format_results(&1, query.select))
+  defp run_query(conn, %Query{} = query, _opts) do
+    {cql, params} = Query.to_string(query)
 
-        {length(res), format_final_result(query_type, res)}
+    has_result? = not Kernel.match?(%Query.ReturnExpr{fields: [nil]}, query.return)
+
+    case query(cql, params, conn: conn) do
+      {:ok, %Bolt.Sips.Response{} = response} ->
+        case is_preload(response) do
+          true ->
+            format_preload_response(response)
+
+          false ->
+            format_response(query.operation, response, has_result?)
+        end
 
       {:error, error} ->
         raise Bolt.Sips.Exception, error.message
     end
   end
 
-  defp format_final_result(query_type, results) when query_type in [:update, :delete] do
-    case Enum.filter(results, fn v -> length(v) > 0 end) do
-      [] -> nil
-      result -> result
+  @spec is_preload(Bolt.Sips.Response.t()) :: bool
+  defp is_preload(%Bolt.Sips.Response{fields: fields}) do
+    Enum.member?(fields, "rel_preload")
+  end
+
+  @spec run_batch_query!(Ecto.Adapters.Neo4j.Query.t()) :: {:ok, []}
+  def run_batch_query!(query) do
+    case run_batch_query(query) do
+      {:ok, []} -> {:ok, []}
+      {:error, error} -> raise Bolt.Sips.Exception, error.message
     end
   end
 
-  defp format_final_result(_, results) do
-    results
+  @spec run_batch_query(Ecto.Adapters.Neo4j.Query.t()) ::
+          {:error, Bolt.Sips.Error.t()} | {:ok, []}
+  def run_batch_query(%Query{batch: %{type: :basic}} = query) do
+    {cql, params} = Query.to_string(query)
+
+    do_run_batch_query(cql, params, -1)
   end
 
-  defp format_results(raw_results, %Ecto.Query.SelectExpr{fields: fields}) do
-    results = manage_id(raw_results)
+  def run_batch_query(%Query{batch: %{type: :with_skip}} = query) do
+    {cql, params} = Query.to_string(query)
 
-    fields
-    # |> Enum.map(fn {{:., _, [{:&, [], [0]}, field_atom]}, _, _} -> field_atom end)
-    |> Enum.map(&format_result_field/1)
-    |> Enum.into([], fn key ->
-      {key, Map.fetch!(results, key)}
-    end)
-    |> Keyword.values()
+    do_run_batch_query_with_skip(cql, params, 0, 1)
   end
 
-  defp format_results(_, nil) do
-    []
+  defp do_run_batch_query(_, _, 0) do
+    {:ok, []}
   end
 
-  defp format_result_field(%Ecto.Query.Tagged{value: field}) do
-    resolve_field_name(field)
+  defp do_run_batch_query(cql, params, _) do
+    case query(cql, params) do
+      {:ok, %Bolt.Sips.Response{results: [%{"nb_touched_nodes" => nb_nodes}]}} ->
+        do_run_batch_query(cql, params, nb_nodes)
+
+      {:error, _} = error ->
+        error
+    end
   end
 
-  defp format_result_field({{:., _, [{:&, [], [0]}, _]}, _, _} = field) do
-    resolve_field_name(field)
+  defp do_run_batch_query_with_skip(_, _, _, 0) do
+    {:ok, []}
   end
 
-  defp format_result_field({aggregate, [], [field | distinct]}) do
-    cql_distinct =
-      if length(distinct) > 0 do
-        "DISTINCT "
-      else
-        ""
+  defp do_run_batch_query_with_skip(cql, params, skip, _) do
+    params = Map.put(params, :skip, skip)
+    %Bolt.Sips.Response{results: [%{"nb_touched_nodes" => nb_nodes}]} = query!(cql, params)
+    do_run_batch_query_with_skip(cql, params, skip + params.limit, nb_nodes)
+  end
+
+  @spec format_preload_response(Bolt.Sips.Response.t()) :: {non_neg_integer, [any]}
+  defp format_preload_response(response) do
+    res =
+      for result_index <- 0..(Enum.count(response.records) - 1) do
+        record =
+          response.records
+          |> Enum.at(result_index)
+          |> List.delete_at(-1)
+
+        result = Enum.at(response.results, result_index)
+
+        List.foldl(result["rel_preload"], record, fn rel, new_record ->
+          %{type: rel_type_from_db, properties: rel_data} = rel
+
+          rel_index =
+            Enum.find_index(
+              response.fields,
+              &(&1 == "n_0.rel_" <> String.downcase(rel_type_from_db))
+            )
+
+          new_record
+          |> List.replace_at(rel_index, rel_data)
+        end)
       end
 
-    Atom.to_string(aggregate) <> "(#{cql_distinct}n." <> resolve_field_name(field) <> ")"
+    {length(res), res}
   end
 
-  defp resolve_field_name({{:., _, [{:&, [], [0]}, field_name]}, [], []}) do
-    Atom.to_string(field_name)
+  @spec format_response(atom(), Bolt.Sips.Response.t(), bool) :: {integer, nil | [any]}
+  defp format_response(:delete_all, response, _) do
+    nb_results =
+      case response.stats do
+        [] -> 0
+        stats -> stats["nodes-deleted"]
+      end
+
+    {nb_results, nil}
   end
 
-  defp manage_id(%{"nodeId" => node_id} = data) do
-    data
-    |> Map.put("id", node_id)
-    |> Enum.reject(fn {key, _} -> key == "nodeId" end)
-    |> Map.new()
+  defp format_response(operation, %{records: results}, true)
+       when operation in [:update, :update_all] do
+    {length(results), results}
   end
 
-  defp manage_id(data) do
-    data
+  defp format_response(operation, %{records: results}, false)
+       when operation in [:update, :update_all] do
+    {length(results), nil}
+  end
+
+  defp format_response(_, %{records: results}, _) do
+    {length(results), results}
   end
 
   @doc """
@@ -146,15 +196,19 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Queryable do
   ### Example
       Ecto.Adapters.Neo4j.Repo.query("MATCH (n:Post {uuid: {uuid}}", %{uuid: "unique_id"})
   """
-  def query(cql, params \\ %{}, _opts \\ []) do
-    Bolt.Sips.query(Bolt.Sips.conn(), cql, params)
+  def query(cql, params \\ %{}, opts \\ []) do
+    conn = Keyword.get(opts, :conn, Bolt.Sips.conn())
+
+    Bolt.Sips.query(conn, cql, params)
   end
 
   @doc """
   Same as `query` but raises in case of error;
   """
-  def query!(cql, params \\ %{}, _opts \\ []) do
-    Bolt.Sips.query!(Bolt.Sips.conn(), cql, params)
+  def query!(cql, params \\ %{}, opts \\ []) do
+    conn = Keyword.get(opts, :conn, Bolt.Sips.conn())
+
+    Bolt.Sips.query!(conn, cql, params)
   end
 
   def batch_query!(cql, params \\ %{}, batch_type \\ :basic, opts \\ []) do

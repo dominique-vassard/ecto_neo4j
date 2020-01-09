@@ -49,6 +49,7 @@ end
 # Code.require_file("../deps/ecto/integration_test/support/repo.exs", __DIR__)
 Code.require_file("../deps/ecto/integration_test/support/schemas.exs", __DIR__)
 Code.require_file("../deps/ecto/integration_test/support/types.exs", __DIR__)
+Code.require_file("./support/schemas.exs", __DIR__)
 
 # Application.put_env(:ecto, Ecto.Integration.PoolRepo, adapter: Ecto.Adapters.Neo4j)
 

@@ -1,4 +1,4 @@
-Application.put_env(:ecto_mnesia, TestRepo, adapter: Ecto.Adapters.Neo4j)
+Application.put_env(:ecto_neo4j, TestRepo, adapter: Ecto.Adapters.Neo4j)
 
 defmodule SellOffer do
   use Ecto.Schema
