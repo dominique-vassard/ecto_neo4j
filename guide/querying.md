@@ -278,3 +278,24 @@ Repo.all(query)
   ]
 ]
 ```
+## Raw cyher queries
+Raw cypher queries can be executed thanks to `Ecto.Adapters.Neo4j.query(cql, params, opts)` and `Ecto.Adapters.Neo4j.query!(cql, params, opts)`.  
+They return a `Bolt.Sips.Response` if case of success
+
+Example:
+```elixir
+iex> my_query = "RETURN {num} AS num"
+iex> Ecto.Adapters.Neo4j.query(my_query, %{num: 5})
+{:ok,
+ %Bolt.Sips.Response{
+   bookmark: nil,
+   fields: ["num"],
+   notifications: [],
+   plan: nil,
+   profile: nil,
+   records: [[5]],
+   results: [%{"num" => 5}],
+   stats: [],
+   type: "r"
+ }}
+```

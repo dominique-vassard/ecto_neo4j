@@ -245,3 +245,81 @@ Repo.get_by!(User, firstName: "John")
 
 Here is how the graph looks like now:  
 ![Remove relationship from old user](../assets/old_user_rel_deleted.png)
+
+## Batch queries
+Some updates or deletes can touch a large number of node and therefore required to be executed as batch in order to perform well (and to finish...).   
+EctoNeo4j provides utility functions for this purpose: `Ecto.Adapters.Neo4j.batch_query(cql, params, batch_type, opts)` and `Ecto.Adapters.Neo4j.batch_query!(cql, params, batch_type, opts)`.  
+There is two types of batches and each require a specially formed query.  
+They works on the same logic: 
+  - 1. execute a query 
+  - 2. count the touched nodes
+  - if the number of touched nodes is not 0 then back to 1  
+
+### Batch types
+#### :basic
+The default batch type is `:basic`. Query must have:  
+  - `LIMIT {limit}` in order to specify the chunk size
+  - returns `RETURN COUNT(the_node_you_re_touching) AS nb_touched_nodes` in order to have the count of touched nodes.  
+This batch type is usually used for `delete` operation.  
+It is not required to provide the `limit` in your `params`, it will be handled by `batch_query`.   
+
+Example:
+```
+cql = """
+MATCH
+  (n:Post)
+WHERE
+  n.title CONTAINS "this"
+WITH                            <--- The `WITH` allows to work on a subset...
+  n AS n                        <--- 
+LIMIT {limit}                   <--- with the specified nuber of node
+DETACH DELETE                   <--- Perform the desired operation
+  n
+RETURN
+  COUNT(n) AS nb_touched_nodes  <--- And return the number of nodes touched by the operation
+"""
+Ecto.Adapters.Neo4j.batch_query(cql)
+```
+
+#### :with_skip
+This batch type is useful where a simple `COUNT` is irrevelant (in update operation for example). Query must have:  
+  - `SKIP {skip} LIMIT {limit}` in order to specify the chunk size
+  - returns `RETURN COUNT(the_node_you_re_touching) AS nb_touched_nodes` in order to have the count of touched nodes.  
+It is not required to provide the `skip` nor the `limit` in your `params`, they will be handled by `batch_query`.   
+
+Example:
+```
+cql = """
+MATCH
+  (n:Post)
+WHERE
+  n.title CONTAINS "this"
+WITH                                <--- THe WITH allows to work on a subset...
+  n AS n                            <--- 
+SKIP {skip} LIMIT {limit}           <--- with the specified nuber of node
+SET                                 <--- Perform the desired operation
+  n.title = "Updated: " + n.title 
+RETURN
+  COUNT(n) AS nb_touched_nodes      <--- And return the number of nodes touched by the operation
+"""
+Ecto.Adapters.Neo4j.batch_query(cql, %{}, :with_skip)
+```
+
+### Chunk size
+The default chunk size is 10_000.  
+The ideal chunk size is tighly related to the machine RAM, and you can specify if you want:
+  - at query level with the options `[chunk_size: integer]`  
+  Example: `Ecto.Adapters.Neo4j.query(cql, params, :basic, [chunk_size: 50_000])`
+  - in your configuration, you can define the desired default chunk_size:  
+```elixir
+  config :ecto_neo4j, Ecto.Adapters.Neo4j,
+  chunk_size: 50_000
+```
+
+### update_all, delete_all
+You can have `Repo.update_all` and `Repo.delete_all` executed as batches with the option `[batch: true]` (without any query tricks).  
+This option can be added in your configuration if you want the behaviour to happen for all `update_all`s and `delete_all`s.
+```elixir
+  config :ecto_neo4j, Ecto.Adapters.Neo4j,
+  batch: true
+```
