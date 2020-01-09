@@ -19,7 +19,8 @@ Unsupported features:
 ## The Project: GraphApp
 We are going to build a backend to manage the data for a blog application.  
 The model will be as follow:  
-![GrapApp Model](../assets/model.png)  
+<img src="../assets/model.png" alt="GrapApp Model"/>  
+
 a `User` can only have one `UserProfile`.  
 a `User` can write multiple `Posts`.  
 a `User` can read multiple `Posts`.
