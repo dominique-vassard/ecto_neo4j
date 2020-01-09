@@ -300,7 +300,8 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
   @spec build_set(map(), Query.RelationshipExpr.t(), atom) :: map
   defp build_set(changes, %Query.RelationshipExpr{variable: rel_variable}, assoc_field) do
     Enum.reduce(changes, %{sets: [], params: %{}}, fn {field, value}, sets_data ->
-      bound_name = rel_variable <> "_" <> Atom.to_string(assoc_field)
+      bound_name =
+        rel_variable <> "_" <> Atom.to_string(assoc_field) <> "_" <> Atom.to_string(field)
 
       set = %Query.SetExpr{
         field: %Query.FieldExpr{

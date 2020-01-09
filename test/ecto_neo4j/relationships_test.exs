@@ -853,7 +853,7 @@ defmodule EctoNeo4j.RelationshipsTest do
       assert {:ok,
               %EctoNeo4j.Integration.Post{
                 rel_read: nil,
-                rel_wrote: %{"when" => ~D[2020-03-04]},
+                rel_wrote: %{"when" => ~D[2020-03-04], "nb_read" => 56},
                 text: "This is the first",
                 title: "First",
                 read_post_uuid: nil,
@@ -868,17 +868,17 @@ defmodule EctoNeo4j.RelationshipsTest do
                TestRepo.get!(Post, post.uuid)
                |> Ecto.Adapters.Neo4j.preload([:wrote_post])
                |> Ecto.Changeset.change()
-               |> Ecto.Changeset.put_change(:rel_wrote, %{when: ~D[2020-03-04]})
+               |> Ecto.Changeset.put_change(:rel_wrote, %{when: ~D[2020-03-04], nb_read: 56})
                |> Ecto.Adapters.Neo4j.update(TestRepo)
 
       cql_check = """
       MATCH
-        (u:User)-[:WROTE {when: {wrote_when}}]->(p:Post {uuid: {post_uuid}})
+        (u:User)-[:WROTE {when: {wrote_when}, nb_read: {wrote_nb_read}}]->(p:Post {uuid: {post_uuid}})
       RETURN
         COUNT (p) AS nb_post
       """
 
-      params = %{post_uuid: post.uuid, wrote_when: ~D[2020-03-04]}
+      params = %{post_uuid: post.uuid, wrote_when: ~D[2020-03-04], wrote_nb_read: 56}
 
       assert %Bolt.Sips.Response{results: [%{"nb_post" => 1}]} =
                Ecto.Adapters.Neo4j.query!(cql_check, params)
