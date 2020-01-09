@@ -74,7 +74,7 @@ comment1_data = %Comment{
 ```
 
 Now let's insert this graph:  
-![insert graph](../assets/insert_result.png)
+![insert graph](assets/insert_result.png)
 ```elixir
 alias GraphApp.Account.{User, UserProfile}
 alias GraphApp.Blog.{Post, Comment}

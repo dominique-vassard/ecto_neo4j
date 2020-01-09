@@ -5,7 +5,7 @@ defmodule EctoNeo4j.MixProject do
     [
       name: "EctoNeo4j",
       app: :ecto_neo4j,
-      version: "0.6.1",
+      version: "0.6.2",
       elixir: "~> 1.8",
       package: package(),
       description: "Ecto adapter for Neo4j graph database",
@@ -13,6 +13,7 @@ defmodule EctoNeo4j.MixProject do
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
+      aliases: aliases(),
       source_url: "https://github.com/dominique-vassard/ecto_neo4j",
       docs: docs()
     ]
@@ -39,6 +40,7 @@ defmodule EctoNeo4j.MixProject do
 
   defp docs() do
     [
+      assets: "assets",
       main: "readme",
       extras: extras(),
       groups_for_extras: groups_for_extras()
@@ -72,5 +74,19 @@ defmodule EctoNeo4j.MixProject do
       {:ex_doc, "~> 0.19", only: :dev, runtime: false},
       {:dialyxir, "~> 1.0.0-rc.4", only: [:dev], runtime: false}
     ]
+  end
+
+  defp aliases do
+    [docs: ["docs", &copy_images/1]]
+  end
+
+  defp copy_images(_) do
+    File.cp_r("assets", "doc/assets", fn source, destination ->
+      IO.gets("Overwriting #{destination} by #{source}. Type y to confirm. ") == "y\n"
+    end)
+
+    File.cp_r("doc", "docs", fn _source, _destination ->
+      true
+    end)
   end
 end

@@ -64,7 +64,7 @@ We simply follow the two following rules:
 
 ### Examples
 So, our graph is like this:  
-![Current graph](../assets/insert_result.png)
+![Current graph](assets/insert_result.png)
 
 Let's rework it!  
 

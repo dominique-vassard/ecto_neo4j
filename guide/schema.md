@@ -51,7 +51,7 @@ This field is mandatory, even if there will be no properties to use. It is still
 ## Putting up the GraphApp schemas
 
 ### Remember the model
-![GrapApp Model](../assets/model.png)  
+![GrapApp Model](assets/model.png)  
 a `User` can only have one `UserProfile`.  
 a `User` can write multiple `Posts`.  
 a `User` can read multiple `Posts`.
