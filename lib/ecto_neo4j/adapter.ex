@@ -60,6 +60,17 @@ defmodule Ecto.Adapters.Neo4j do
     |> Ecto.Adapters.Neo4j.Behaviour.Relationship.process_relationships()
   end
 
+  @doc """
+  Same as insert/3 but raises in case of error.
+  """
+  def insert!(repo, data, opts \\ []) do
+    case insert(repo, data, opts) do
+      {:ok, result} -> result
+      {:error, error} -> raise error
+      error -> raise error
+    end
+  end
+
   defdelegate update(adapter_meta, schema_meta, fields, filters, returning, options),
     to: Ecto.Adapters.Neo4j.Behaviour.Schema
 
