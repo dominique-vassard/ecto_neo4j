@@ -185,7 +185,7 @@ The weird position of `repo` in the argument is to ease the piping.
 There is nothing special here, insert your data as you would do with classic Ecto associations. 
 
 #### Updating / Deleting
-For this kind of operation, [put_assoc](https://hexdocs.pm/ecto/Ecto.Changeset.html#put_assoc/4) has to used.
+For this kind of operation, [put_assoc](https://hexdocs.pm/ecto/Ecto.Changeset.html#put_assoc/4) has to be used.
 
 #### Querying
 Because relationship are not citizens in the relational world, Ecto does not provide the ability to query them. In order to retrieve relationship data, you will have to query the node in order to feed the relationship field (prefixed by `rel_`).  
@@ -294,7 +294,7 @@ LIMIT {limit}                   <--- with the specified nuber of node
 DETACH DELETE                   <--- Perform the desired operation
   n
 RETURN
-  COUNT(n) AS nb_touched_nodes  <--- And return the numbere of node touched by the operation
+  COUNT(n) AS nb_touched_nodes  <--- And return the number of nodes touched by the operation
 """
 Ecto.Adapters.Neo4j.batch_query(cql)
 ```
@@ -318,7 +318,7 @@ SKIP {skip} LIMIT {limit}           <--- with the specified nuber of node
 SET                                 <--- Perform the desired operation
   n.title = "Updated: " + n.title 
 RETURN
-  COUNT(n) AS nb_touched_nodes      <--- And return the numbere of node touched by the operation
+  COUNT(n) AS nb_touched_nodes      <--- And return the number of nodes touched by the operation
 """
 Ecto.Adapters.Neo4j.batch_query(cql, %{}, :with_skip)
 ```

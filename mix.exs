@@ -40,7 +40,25 @@ defmodule EctoNeo4j.MixProject do
   defp docs() do
     [
       main: "readme",
-      extras: ["README.md"]
+      extras: extras(),
+      groups_for_extras: groups_for_extras()
+    ]
+  end
+
+  defp extras do
+    [
+      "README.md",
+      "guide/up_and_running.md",
+      "guide/schema.md",
+      "guide/inserting.md",
+      "guide/querying.md",
+      "guide/updating_and_deleting.md"
+    ]
+  end
+
+  defp groups_for_extras do
+    [
+      Guide: ~r/guide\/[^\/]+\.md/
     ]
   end
 
