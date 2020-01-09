@@ -301,6 +301,10 @@ defmodule Ecto.Adapters.Neo4j.QueryMapper do
     end
   end
 
+  def map_select(%{expr: expr, fields: fields}) when is_list(expr) do
+    build_return_fields(fields)
+  end
+
   def map_select(%{expr: select_fields}) do
     build_return_fields(select_fields)
   end

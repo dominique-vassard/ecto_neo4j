@@ -190,7 +190,7 @@ defmodule EctoNeo4j.RelationshipsTest do
                  text: "This a comment from john Doe",
                  uuid: "2be39329-d9b5-4b85-a07f-ee9a2997a8ef"
                }
-             ] = comments
+             ] = Enum.sort(comments)
     end
 
     test "preload (unique upward)" do
@@ -445,6 +445,37 @@ defmodule EctoNeo4j.RelationshipsTest do
           select: [u.first_name, p.title, c.text]
 
       assert [] = TestRepo.all(query)
+    end
+
+    test "return both nodes" do
+      add_data()
+
+      rel_data = %{when: ~D[2018-01-01]}
+
+      query =
+        from u in User,
+          join: p in Post,
+          on: p.rel_wrote == ^rel_data,
+          select: [u, p]
+
+      assert [
+               [
+                 %EctoNeo4j.Integration.User{
+                   first_name: "John",
+                   last_name: "Doe",
+                   uuid: "12903da6-5d46-417b-9cab-bd82766c868b"
+                 },
+                 %EctoNeo4j.Integration.Post{
+                   read_post_uuid: nil,
+                   rel_read: nil,
+                   rel_wrote: nil,
+                   text: "This is the first",
+                   title: "First",
+                   uuid: "ae830851-9e93-46d5-bbf7-23ab99846497",
+                   wrote_post_uuid: nil
+                 }
+               ]
+             ] = TestRepo.all(query)
     end
   end
 
