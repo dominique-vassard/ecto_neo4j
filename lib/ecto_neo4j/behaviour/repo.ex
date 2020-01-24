@@ -142,12 +142,12 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Repo do
     }
   end
 
-  defp preload_info(preload, %Ecto.Association.Has{} = preload_data) do
+  defp preload_info(preload, %Ecto.Association.Has{cardinality: cardinality} = preload_data) do
     %PreloadInfo{
       name: preload,
       upward?: false,
       queryable: preload_data.queryable,
-      unique?: false,
+      unique?: cardinality == :one,
       foreign_key: preload_data.related_key,
       search_key: preload_data.owner_key
     }
@@ -166,7 +166,7 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Repo do
     )
   end
 
-  defp build_struct(struct, %{upward?: false, unique?: false} = preload_info, results, rel_name) do
+  defp build_struct(struct, %{upward?: false, unique?: unique?} = preload_info, results, rel_name) do
     related_fields = preload_info.queryable.__schema__(:fields)
 
     relateds =
@@ -181,6 +181,15 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Repo do
         |> add_relationship_data(result, rel_name)
         |> Map.put(preload_info.foreign_key, Map.fetch!(struct, preload_info.search_key))
       end)
+
+    relateds =
+      case unique? do
+        true ->
+          List.first(relateds)
+
+        false ->
+          relateds
+      end
 
     struct
     |> Map.put(preload_info.name, relateds)

@@ -245,17 +245,29 @@ defmodule EctoNeo4j.RelationshipsTest do
 
       assert %EctoNeo4j.Integration.User{
                first_name: "John",
-               has_userprofile: [
-                 %EctoNeo4j.Integration.UserProfile{
-                   avatar: "user_avatar.png",
-                   has_userprofile_uuid: "12903da6-5d46-417b-9cab-bd82766c868b",
-                   rel_has: %{},
-                   uuid: "0f364433-c0d2-47ac-ad9b-1dc15bd40cde"
-                 }
-               ],
+               has_userprofile: %EctoNeo4j.Integration.UserProfile{
+                 avatar: "user_avatar.png",
+                 has_userprofile_uuid: "12903da6-5d46-417b-9cab-bd82766c868b",
+                 rel_has: %{},
+                 uuid: "0f364433-c0d2-47ac-ad9b-1dc15bd40cde"
+               },
                last_name: "Doe",
                uuid: "12903da6-5d46-417b-9cab-bd82766c868b"
              } =
+               TestRepo.get(User, user.uuid)
+               |> Ecto.Adapters.Neo4j.preload(:has_userprofile)
+    end
+
+    test "preload non-existing unique downward should end up with nil!" do
+      user = add_data()
+
+      %EctoNeo4j.Integration.User{has_userprofile: user_profile} =
+        TestRepo.get(User, user.uuid)
+        |> Ecto.Adapters.Neo4j.preload(:has_userprofile)
+
+      TestRepo.delete(user_profile)
+
+      assert %EctoNeo4j.Integration.User{has_userprofile: nil} =
                TestRepo.get(User, user.uuid)
                |> Ecto.Adapters.Neo4j.preload(:has_userprofile)
     end
