@@ -119,7 +119,7 @@ user = Repo.get_by!(User, firstName: "Jack")
 |> Neo4j.preload(:wrote_post)
 |> Ecto.Changeset.change()
 |> Ecto.Changeset.put_assoc(:wrote_post, [post])
-|> Neo4j.update
+|> Neo4j.update(Repo)
 
 # Result
 {:ok,
