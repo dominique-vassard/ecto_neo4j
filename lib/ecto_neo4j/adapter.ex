@@ -113,8 +113,38 @@ defmodule Ecto.Adapters.Neo4j do
                                                                                        change},
                                                                                       changes ->
         cond do
-          field in schema.__schema__(:associations) and is_list(change) ->
-            new_data =
+          field in schema.__schema__(:associations) and is_nil(change) ->
+            Ecto.Adapters.Neo4j.Behaviour.Relationship.delete(changeset.data, field)
+
+            updated_data =
+              changes.new_data
+              |> Map.put(field, nil)
+
+            final_data =
+              case schema.__schema__(:association, field) do
+                %Ecto.Association.BelongsTo{owner_key: foreign_key} ->
+                  updated_data
+                  |> Map.put(foreign_key, nil)
+
+                _ ->
+                  updated_data
+              end
+
+            %{
+              changes
+              | changes: Map.drop(changes.changes, [field]),
+                new_data: final_data
+            }
+
+          field in schema.__schema__(:associations) ->
+            change =
+              if is_list(change) do
+                change
+              else
+                [change]
+              end
+
+            updated_data =
               Enum.map(change, fn c ->
                 Ecto.Adapters.Neo4j.Behaviour.Relationship.update(
                   c.action,
@@ -125,10 +155,32 @@ defmodule Ecto.Adapters.Neo4j do
               end)
               |> Enum.reject(&is_nil/1)
 
+            new_data =
+              if Kernel.match?(%{cardinality: :one}, schema.__schema__(:association, field)) do
+                List.first(updated_data)
+              else
+                updated_data
+              end
+
+            acc_data = Map.put(changes.new_data, field, new_data)
+
+            final_data =
+              case schema.__schema__(:association, field) do
+                %Ecto.Association.BelongsTo{
+                  owner_key: foreign_key,
+                  related_key: parent_key
+                } ->
+                  Map.put(acc_data, foreign_key, Map.fetch!(new_data, parent_key))
+
+                _ ->
+                  acc_data
+              end
+
             %{
               changes
               | changes: Map.drop(changes.changes, [field]),
-                new_data: Map.put(changes.new_data, field, new_data)
+                # new_data: Map.put(changes.new_data, field, new_data)
+                new_data: final_data
             }
 
           Kernel.match?("rel_" <> _, Atom.to_string(field)) ->

@@ -115,6 +115,32 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
     {relationship_data, %{where: where, params: params}} =
       build_relationship_and_clauses(node1_data, node2_data, rel_name)
 
+    %{__struct__: node1_schema} = node1_data
+
+    {optional_match, delete} =
+      case node1_schema.__schema__(:association, rel_name) do
+        %Ecto.Association.BelongsTo{cardinality: :one} ->
+          rel_old =
+            relationship_data
+            |> Map.put(:start, Map.drop(relationship_data.start, [:variable]))
+            |> Map.put(:end, Map.drop(relationship_data.end, [:labels]))
+            |> Map.put(:variable, "rel_old")
+
+          {[rel_old], [rel_old]}
+
+        %Ecto.Association.Has{cardinality: :one} ->
+          rel_old =
+            relationship_data
+            |> Map.put(:start, Map.drop(relationship_data.start, [:labels]))
+            |> Map.put(:end, Map.drop(relationship_data.end, [:variable]))
+            |> Map.put(:variable, "rel_old")
+
+          {[rel_old], [rel_old]}
+
+        _ ->
+          {[], []}
+      end
+
     relationship =
       relationship_data
       |> Map.put(:start, Map.drop(relationship_data.start, [:labels]))
@@ -126,6 +152,8 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
         relationship_data.start,
         relationship_data.end
       ])
+      |> Query.optional_match(optional_match)
+      |> Query.delete(delete)
       |> Query.merge([
         %Query.MergeExpr{
           expr: relationship
@@ -150,6 +178,52 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
       |> Query.delete([relationship])
       |> Query.where(where)
       |> Query.params(params)
+      |> Query.to_string()
+
+    Ecto.Adapters.Neo4j.query!(cql, params)
+    nil
+  end
+
+  def delete(node_data, rel_name) do
+    node_info = node_info(node_data)
+
+    %{__struct__: schema} = node_data
+
+    {queryable, node_start, node_end} =
+      case schema.__schema__(:association, rel_name) do
+        %Ecto.Association.BelongsTo{queryable: queryable} ->
+          node_start = %Query.NodeExpr{
+            labels: [queryable.__schema__(:source)]
+          }
+
+          {queryable, node_start, node_info.expr}
+
+        %Ecto.Association.Has{queryable: queryable} ->
+          node_end = %Query.NodeExpr{
+            labels: [queryable.__schema__(:source)]
+          }
+
+          {queryable, node_info.expr, node_end}
+      end
+
+    relationship = %Query.RelationshipExpr{
+      start: node_start,
+      end: node_end,
+      variable: "rel",
+      type: extract_relationship_type(rel_name, queryable, schema)
+    }
+
+    clause =
+      node_info
+      |> build_where()
+      |> List.first()
+
+    {cql, params} =
+      Query.new(:delete)
+      |> Query.match([relationship])
+      |> Query.delete([relationship])
+      |> Query.where(clause.condition)
+      |> Query.params(clause.params)
       |> Query.to_string()
 
     Ecto.Adapters.Neo4j.query!(cql, params)
@@ -323,18 +397,16 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
   defp add_fk_data(parent, child, field) do
     %{__struct__: child_schema} = child
 
-    Enum.reduce(child_schema.__schema__(:associations), nil, fn assoc, result ->
-      case child_schema.__schema__(:association, assoc) do
-        %Ecto.Association.BelongsTo{
-          field: ^field,
-          owner_key: foreign_key,
-          related_key: parent_key
-        } ->
-          Map.put(child, foreign_key, Map.fetch!(parent, parent_key))
+    case child_schema.__schema__(:association, field) do
+      %Ecto.Association.BelongsTo{
+        field: ^field,
+        owner_key: foreign_key,
+        related_key: parent_key
+      } ->
+        Map.put(child, foreign_key, Map.fetch!(parent, parent_key))
 
-        _ ->
-          result
-      end
-    end)
+      _ ->
+        child
+    end
   end
 end
