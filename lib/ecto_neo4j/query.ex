@@ -186,6 +186,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
 
   defstruct [
     :operation,
+    :optional_match,
     :match,
     :merge,
     :delete,
@@ -202,6 +203,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
   @type t :: %__MODULE__{
           operation: atom(),
           match: [entity_expr],
+          optional_match: [entity_expr],
           merge: [MergeExpr.t()],
           delete: [entity_expr],
           where: nil | Ecto.Adapters.Neo4j.Condition.t(),
@@ -229,6 +231,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
     %Query{
       operation: operation,
       match: [],
+      optional_match: [],
       merge: [],
       where: nil,
       set: [],
@@ -271,6 +274,14 @@ defmodule Ecto.Adapters.Neo4j.Query do
   @spec match(Query.t(), [entity_expr]) :: Query.t()
   def match(query, match) when is_list(match) do
     %{query | match: query.match ++ match}
+  end
+
+  @doc """
+  Adds OPTIONAL MATCH data
+  """
+  @spec optional_match(Query.t(), [entity_expr]) :: Query.t()
+  def optional_match(query, optional_match) when is_list(optional_match) do
+    %{query | optional_match: query.optional_match ++ optional_match}
   end
 
   @doc """
@@ -431,6 +442,12 @@ defmodule Ecto.Adapters.Neo4j.Query do
       |> MapSet.to_list()
       |> stringify_match()
 
+    optional_match =
+      query.optional_match
+      |> MapSet.new()
+      |> MapSet.to_list()
+      |> stringify_match()
+
     cql_merge = stringify_merges(query.merge)
     where = stringify_where(query.where)
     return = stringify_return(query.return)
@@ -445,6 +462,14 @@ defmodule Ecto.Adapters.Neo4j.Query do
         """
         MATCH
           #{match}
+        """
+      end
+
+    cql_optional_match =
+      if String.length(optional_match) > 0 do
+        """
+        OPTIONAL MATCH
+          #{optional_match}
         """
       end
 
@@ -510,6 +535,7 @@ defmodule Ecto.Adapters.Neo4j.Query do
     cql = """
     #{cql_match}
     #{cql_where}
+    #{cql_optional_match}
     #{cql_merge}
     #{cql_batch}
     #{cql_delete}
@@ -536,6 +562,10 @@ defmodule Ecto.Adapters.Neo4j.Query do
 
   defp stringify_match_entity(%NodeExpr{variable: variable}) do
     "(#{variable})"
+  end
+
+  defp stringify_match_entity(%NodeExpr{labels: [label]}) do
+    "(:#{label})"
   end
 
   defp stringify_match_entity(%RelationshipExpr{

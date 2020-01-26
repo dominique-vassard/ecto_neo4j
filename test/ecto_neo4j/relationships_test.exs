@@ -623,14 +623,6 @@ defmodule EctoNeo4j.RelationshipsTest do
     test "belongs to - update from child (remove relationship)" do
       user_data = add_data()
 
-      new_user = %User{
-        uuid: "ec1741ba-28f2-47fc-8a96-a3c5e24c42da",
-        first_name: "Jack",
-        last_name: "Allops"
-      }
-
-      TestRepo.insert!(new_user)
-
       comment_uuid = List.first(user_data.wrote_comment).uuid
 
       assert {:ok,
@@ -830,8 +822,8 @@ defmodule EctoNeo4j.RelationshipsTest do
                   first_name: "Jack",
                   last_name: "Allops",
                   uuid: "ec1741ba-28f2-47fc-8a96-a3c5e24c42da"
-                },
-                wrote_post_uuid: "ec1741ba-28f2-47fc-8a96-a3c5e24c42da"
+                }
+                # wrote_post_uuid: "ec1741ba-28f2-47fc-8a96-a3c5e24c42da"
               }} =
                TestRepo.get!(Post, post_uuid)
                |> Ecto.Adapters.Neo4j.preload([:wrote_post, :has_comment])
@@ -853,6 +845,140 @@ defmodule EctoNeo4j.RelationshipsTest do
       params = %{user_uuid: new_user.uuid, post_uuid: post_uuid}
 
       assert %Bolt.Sips.Response{results: [%{"nb_comment" => 0}]} =
+               Ecto.Adapters.Neo4j.query!(cql_check, params)
+
+      cql_check_user = """
+      MATCH
+        (post {uuid: $post_uuid}),
+        (user:User)-[:WROTE]->(post)
+      RETURN
+        user.uuid AS user_uuid
+      """
+
+      params = %{post_uuid: post_uuid}
+      %Bolt.Sips.Response{results: results} = Ecto.Adapters.Neo4j.query!(cql_check_user, params)
+
+      assert length(results) == 1
+      assert List.first(results)["user_uuid"] == new_user.uuid
+    end
+
+    test "has_one from nil" do
+      user = add_data()
+
+      %EctoNeo4j.Integration.User{has_userprofile: user_profile} =
+        TestRepo.get(User, user.uuid)
+        |> Ecto.Adapters.Neo4j.preload(:has_userprofile)
+
+      TestRepo.delete(user_profile)
+
+      assert %EctoNeo4j.Integration.User{has_userprofile: nil} =
+               TestRepo.get(User, user.uuid)
+               |> Ecto.Adapters.Neo4j.preload(:has_userprofile)
+
+      user_profile =
+        %UserProfile{
+          uuid: "0f364433-c0d2-47ac-ad9b-1dc15bd40cde",
+          avatar: "user_avatar.png",
+          rel_has: %{}
+        }
+        |> TestRepo.insert!()
+
+      TestRepo.get!(User, user.uuid)
+      |> Ecto.Adapters.Neo4j.preload(:has_userprofile)
+      |> Ecto.Changeset.change()
+      |> Ecto.Changeset.put_assoc(:has_userprofile, user_profile)
+      |> Ecto.Adapters.Neo4j.update(TestRepo)
+
+      cql = """
+      MATCH
+        (u:User {uuid: $uuid})-[rel]->(up)
+      RETURN
+        up
+      """
+
+      Ecto.Adapters.Neo4j.query(cql, %{uuid: user.uuid})
+
+      Ecto.Adapters.Neo4j.query("MATCH (up:UserProfile) RETURN up")
+    end
+
+    test "has_one - update relationship" do
+      user = add_data()
+
+      new_user_profile =
+        %UserProfile{
+          uuid: "6caf7dac-4396-4cb4-9aa4-bd74b00f419c",
+          avatar: "NEW_user_avatar.png",
+          rel_has: %{}
+        }
+        |> TestRepo.insert!()
+
+      assert {:ok,
+              %EctoNeo4j.Integration.User{
+                first_name: "John",
+                has_userprofile: %EctoNeo4j.Integration.UserProfile{
+                  avatar: "NEW_user_avatar.png",
+                  has_userprofile_uuid: "12903da6-5d46-417b-9cab-bd82766c868b",
+                  rel_has: %{},
+                  uuid: "6caf7dac-4396-4cb4-9aa4-bd74b00f419c"
+                },
+                last_name: "Doe",
+                uuid: "12903da6-5d46-417b-9cab-bd82766c868b"
+              }} =
+               TestRepo.get!(User, user.uuid)
+               |> Ecto.Adapters.Neo4j.preload(:has_userprofile)
+               |> Ecto.Changeset.change()
+               |> Ecto.Changeset.put_assoc(:has_userprofile, new_user_profile)
+               |> Ecto.Adapters.Neo4j.update(TestRepo)
+
+      cql_check = """
+      MATCH
+        (user:User {uuid: $user_uuid}),
+        (old_profile:UserProfile {uuid: $old_profile_uuid}),
+        (new_profile:UserProfile {uuid: $new_profile_uuid}),
+        (user)-[:HAS]->(new_profile)
+      WHERE
+        NOT (user)-[:HAS]->(old_profile)
+      RETURN COUNT(new_profile) AS nb_profile
+      """
+
+      params = %{
+        user_uuid: user.uuid,
+        old_profile_uuid: user.has_userprofile.uuid,
+        new_profile_uuid: new_user_profile.uuid
+      }
+
+      assert %Bolt.Sips.Response{results: [%{"nb_profile" => 1}]} =
+               Ecto.Adapters.Neo4j.query!(cql_check, params)
+    end
+
+    test "has_one - remove relationship" do
+      user_data = add_data()
+
+      assert {:ok,
+              %EctoNeo4j.Integration.User{
+                first_name: "John",
+                has_userprofile: nil,
+                last_name: "Doe",
+                uuid: "12903da6-5d46-417b-9cab-bd82766c868b"
+              }} =
+               TestRepo.get(User, user_data.uuid)
+               |> TestRepo.preload([:has_userprofile])
+               |> Ecto.Changeset.change()
+               |> Ecto.Changeset.put_assoc(:has_userprofile, nil)
+               |> Ecto.Adapters.Neo4j.update(TestRepo)
+
+      cql_check = """
+      MATCH
+          (user:User {uuid: $user_uuid})-[:HAS]->(up:UserProfile)
+      RETURN
+          COUNT(up) AS nb_profile
+      """
+
+      params = %{
+        user_uuid: user_data.uuid
+      }
+
+      assert %Bolt.Sips.Response{results: [%{"nb_profile" => 0}]} =
                Ecto.Adapters.Neo4j.query!(cql_check, params)
     end
 
