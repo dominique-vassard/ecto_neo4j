@@ -109,9 +109,12 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
       # This will remove the relationship (User)-[:WROTE]->(Post)
       update(:delete, user, post, :wrote_post)
   """
-  @spec update(:replace | :update, Ecto.Schema.t(), atom | Ecto.Schema.t(), atom()) ::
-          nil | Ecto.Schema.t()
-  def update(:update, node1_data, node2_data, rel_name) do
+  @spec update(Ecto.Changeset.t(), Ecto.Schema.t(), atom()) :: nil | Ecto.Schema.t()
+  def update(
+        %Ecto.Changeset{action: :update, data: node2_data, changes: rel_data} = changeset,
+        node1_data,
+        rel_name
+      ) do
     {relationship_data, %{where: where, params: params}} =
       build_relationship_and_clauses(node1_data, node2_data, rel_name)
 
@@ -141,6 +144,19 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
           {[], []}
       end
 
+    # Manage relationship data
+    rel_key =
+      ("rel_" <> String.downcase(relationship_data.type))
+      |> String.to_atom()
+
+    %{params: set_params, sets: sets} =
+      if Kernel.match?(%Ecto.Association.Has{}, node1_schema.__schema__(:association, rel_name)) and
+           Map.get(rel_data, rel_key) do
+        build_set(Map.get(rel_data, rel_key), relationship_data, rel_name)
+      else
+        %{params: %{}, sets: []}
+      end
+
     relationship =
       relationship_data
       |> Map.put(:start, Map.drop(relationship_data.start, [:labels]))
@@ -159,16 +175,18 @@ defmodule Ecto.Adapters.Neo4j.Behaviour.Relationship do
           expr: relationship
         }
       ])
+      |> Query.set(sets)
       |> Query.where(where)
-      |> Query.params(params)
+      |> Query.params(Map.merge(params, set_params))
       |> Query.to_string()
 
     Ecto.Adapters.Neo4j.query!(cql, params)
 
-    add_fk_data(node1_data, node2_data, rel_name)
+    add_fk_data(node1_data, Ecto.Changeset.apply_changes(changeset), rel_name)
   end
 
-  def update(:replace, node1_data, node2_data, rel_name) do
+  def update(%Ecto.Changeset{action: :replace, data: node2_data}, node1_data, rel_name) do
+    # def update(:replace, node1_data, node2_data, rel_name, _) do
     {relationship, %{where: where, params: params}} =
       build_relationship_and_clauses(node1_data, node2_data, rel_name)
 

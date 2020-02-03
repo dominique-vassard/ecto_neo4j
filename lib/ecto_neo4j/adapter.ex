@@ -146,12 +146,7 @@ defmodule Ecto.Adapters.Neo4j do
 
             updated_data =
               Enum.map(change, fn c ->
-                Ecto.Adapters.Neo4j.Behaviour.Relationship.update(
-                  c.action,
-                  changeset.data,
-                  c.data,
-                  field
-                )
+                Ecto.Adapters.Neo4j.Behaviour.Relationship.update(c, changeset.data, field)
               end)
               |> Enum.reject(&is_nil/1)
 
