@@ -226,7 +226,7 @@ defmodule Ecto.Adapters.Neo4j do
   Same as `update\3` but raises in case of error
   """
   @spec update!(Ecto.Changeset.t(), module, Keyword.t()) :: Ecto.Schema.t()
-  def update!(changeset, repo, opts) do
+  def update!(changeset, repo, opts \\ []) do
     case update(changeset, repo, opts) do
       {:ok, result} ->
         result
