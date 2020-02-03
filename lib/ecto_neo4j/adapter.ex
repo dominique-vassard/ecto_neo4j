@@ -146,12 +146,7 @@ defmodule Ecto.Adapters.Neo4j do
 
             updated_data =
               Enum.map(change, fn c ->
-                Ecto.Adapters.Neo4j.Behaviour.Relationship.update(
-                  c.action,
-                  changeset.data,
-                  c.data,
-                  field
-                )
+                Ecto.Adapters.Neo4j.Behaviour.Relationship.update(c, changeset.data, field)
               end)
               |> Enum.reject(&is_nil/1)
 
@@ -226,7 +221,7 @@ defmodule Ecto.Adapters.Neo4j do
   Same as `update\3` but raises in case of error
   """
   @spec update!(Ecto.Changeset.t(), module, Keyword.t()) :: Ecto.Schema.t()
-  def update!(changeset, repo, opts) do
+  def update!(changeset, repo, opts \\ []) do
     case update(changeset, repo, opts) do
       {:ok, result} ->
         result

@@ -1021,6 +1021,68 @@ defmodule EctoNeo4j.RelationshipsTest do
       assert %Bolt.Sips.Response{results: [%{"nb_post" => 1}]} =
                Ecto.Adapters.Neo4j.query!(cql_check, params)
     end
+
+    test "update child-parent relationship with data" do
+      user_data = add_data()
+
+      post = List.first(user_data.wrote_post)
+
+      user =
+        %User{
+          uuid: "ec1741ba-28f2-47fc-8a96-a3c5e24c42da",
+          first_name: "Jack",
+          last_name: "Allops"
+        }
+        |> TestRepo.insert!()
+
+      data = %{rel_wrote: %{when: ~D[2020-02-03]}}
+      # Remove previous WROTE relationship
+      new_post =
+        TestRepo.get!(Post, post.uuid)
+        |> Ecto.Adapters.Neo4j.preload(:wrote_post)
+        |> Ecto.Changeset.change()
+        |> Ecto.Changeset.put_assoc(:wrote_post, nil)
+        |> Ecto.Adapters.Neo4j.update!(TestRepo)
+        |> Ecto.Changeset.change(data)
+
+      # Add relationship to new user
+      assert {:ok,
+              %EctoNeo4j.Integration.User{
+                first_name: "Jack",
+                last_name: "Allops",
+                uuid: "ec1741ba-28f2-47fc-8a96-a3c5e24c42da",
+                wrote_post: [
+                  %EctoNeo4j.Integration.Post{
+                    read_post_uuid: nil,
+                    rel_read: nil,
+                    rel_wrote: %{when: ~D[2020-02-03]},
+                    text: "This is the first",
+                    title: "First",
+                    uuid: "ae830851-9e93-46d5-bbf7-23ab99846497",
+                    wrote_post_uuid: "ec1741ba-28f2-47fc-8a96-a3c5e24c42da"
+                  }
+                ]
+              }} =
+               TestRepo.get!(User, user.uuid)
+               |> Ecto.Adapters.Neo4j.preload(:wrote_post)
+               |> Ecto.Changeset.change()
+               |> Ecto.Changeset.put_assoc(:wrote_post, [new_post])
+               |> Ecto.Adapters.Neo4j.update(TestRepo)
+
+      cql_check = """
+      MATCH
+        (user:User {uuid: $user_uuid}),
+        (post:Post {uuid: $post_uuid}),
+        (user)-[rel:WROTE {when: $when}]->(post)
+      RETURN
+        COUNT(rel) AS nb_rel
+      """
+
+      params = %{user_uuid: user.uuid, post_uuid: post.uuid, when: ~D[2020-02-03]}
+
+      assert %Bolt.Sips.Response{results: [%{"nb_rel" => 1}]} =
+               Ecto.Adapters.Neo4j.query!(cql_check, params)
+    end
   end
 
   defp fixtures() do
