@@ -123,8 +123,22 @@ defmodule Ecto.Adapters.Neo4j do
             final_data =
               case schema.__schema__(:association, field) do
                 %Ecto.Association.BelongsTo{owner_key: foreign_key} ->
+                  schema_name =
+                    schema
+                    |> Module.split()
+                    |> List.last()
+                    |> String.downcase()
+
+                  rel_type =
+                    field
+                    |> Atom.to_string()
+                    |> String.replace("_" <> schema_name, "")
+
+                  rel_data_key = ("rel_" <> rel_type) |> String.to_atom()
+
                   updated_data
                   |> Map.put(foreign_key, nil)
+                  |> Map.put(rel_data_key, nil)
 
                 _ ->
                   updated_data

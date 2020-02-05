@@ -638,7 +638,7 @@ defmodule EctoNeo4j.RelationshipsTest do
                 },
                 has_comment_uuid: "ae830851-9e93-46d5-bbf7-23ab99846497",
                 rel_has: %{},
-                rel_wrote: %{"when" => ~D[2018-06-18]},
+                rel_wrote: nil,
                 text: "This a comment from john Doe",
                 uuid: "2be39329-d9b5-4b85-a07f-ee9a2997a8ef",
                 wrote_comment: nil,
@@ -1082,6 +1082,28 @@ defmodule EctoNeo4j.RelationshipsTest do
 
       assert %Bolt.Sips.Response{results: [%{"nb_rel" => 1}]} =
                Ecto.Adapters.Neo4j.query!(cql_check, params)
+    end
+
+    test "bug fix: wrong data when relationship is deleted (child->  parent)" do
+      user_data = add_data()
+
+      post = List.first(user_data.wrote_post)
+
+      assert %EctoNeo4j.Integration.Post{
+               read_post_uuid: nil,
+               rel_read: nil,
+               rel_wrote: nil,
+               text: "This is the first",
+               title: "First",
+               uuid: "ae830851-9e93-46d5-bbf7-23ab99846497",
+               wrote_post: nil,
+               wrote_post_uuid: nil
+             } =
+               TestRepo.get!(Post, post.uuid)
+               |> Ecto.Adapters.Neo4j.preload(:wrote_post)
+               |> Ecto.Changeset.change()
+               |> Ecto.Changeset.put_assoc(:wrote_post, nil)
+               |> Ecto.Adapters.Neo4j.update!(TestRepo)
     end
   end
 
