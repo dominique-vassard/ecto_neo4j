@@ -11,9 +11,9 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
       iex> data = %{title: "New title", uuid: "a-valid-uuid"}
       iex> Ecto.Adapters.Neo4j.Cql.Node.insert("Post", data, [:uuid])
       {"MERGE
-        (n:Post {uuid: {uuid}})
+        (n:Post {uuid: $uuid})
       ON CREATE SET
-        n.title = {title},  \\nn.uuid = {uuid}\\n
+        n.title = $title,  \\nn.uuid = $uuid\\n
       RETURN
         n
       ", %{title: "New title", uuid: "a-valid-uuid"}}
@@ -22,9 +22,9 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
       iex> data = %{title: "New title", uuid: "a-valid-uuid"}
       iex> Ecto.Adapters.Neo4j.Cql.Node.insert("Post", data, [:uuid], [:uuid])
       {"MERGE
-        (n:Post {uuid: {uuid}})
+        (n:Post {uuid: $uuid})
       ON CREATE SET
-        n.title = {title},  \\nn.uuid = {uuid}\\n
+        n.title = $title,  \\nn.uuid = $uuid\\n
       RETURN
         n.uuid AS uuid
       ", %{title: "New title", uuid: "a-valid-uuid"}}
@@ -35,7 +35,7 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
   def insert(node_label, data, [], return) do
     data_to_set =
       data
-      |> Enum.map(fn {k, _} -> "n.#{k} = {#{k}}" end)
+      |> Enum.map(fn {k, _} -> "n.#{k} = $#{k}" end)
 
     cql_set =
       if length(data_to_set) > 0 do
@@ -59,13 +59,13 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
   def insert(node_label, data, primary_keys, return) do
     pk_clause =
       Enum.map(primary_keys, fn pk ->
-        "#{Atom.to_string(pk)}: {#{Atom.to_string(pk)}}"
+        "#{Atom.to_string(pk)}: $#{Atom.to_string(pk)}"
       end)
       |> Enum.join(",")
 
     data_to_set =
       data
-      |> Enum.map(fn {k, _} -> "n.#{k} = {#{k}}" end)
+      |> Enum.map(fn {k, _} -> "n.#{k} = $#{k}" end)
 
     cql_set =
       if length(data_to_set) > 0 do
