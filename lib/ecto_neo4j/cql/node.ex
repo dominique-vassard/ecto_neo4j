@@ -107,9 +107,9 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
       {"MATCH
         (n:Post)
       WHERE
-        n.id = {f_id}
+        n.id = $f_id
       SET
-        n.title = {title}
+        n.title = $title
       RETURN
         n
       ", %{f_id: 5, title: "New title"}}
@@ -118,14 +118,14 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
   def update(node_label, data, filters \\ %{}) do
     set =
       data
-      |> Enum.map(fn {k, _} -> "n.#{k} = {#{k}}" end)
+      |> Enum.map(fn {k, _} -> "n.#{k} = $#{k}" end)
       |> Enum.join(", \n")
 
     cql_where =
       if map_size(filters) > 0 do
         where =
           filters
-          |> Enum.map(fn {k, _} -> "n.#{k} = {f_#{k}}" end)
+          |> Enum.map(fn {k, _} -> "n.#{k} = $f_#{k}" end)
           |> Enum.join(" AND ")
 
         "WHERE\n  " <> where
@@ -166,7 +166,7 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
       {"MATCH
         (n:Post)
       WHERE
-        n.uuid = {uuid}
+        n.uuid = $uuid
       DETACH DELETE
         n
       RETURN
@@ -177,7 +177,7 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
   def delete(node_label, filters) do
     where =
       filters
-      |> Enum.map(fn {k, _} -> "n.#{k} = {#{k}}" end)
+      |> Enum.map(fn {k, _} -> "n.#{k} = $#{k}" end)
       |> Enum.join(" AND ")
 
     cql = """
@@ -228,7 +228,7 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
       WITH
         n AS n
       LIMIT
-        {limit}
+        $limit
       DETACH DELETE
         n
       RETURN
@@ -243,7 +243,7 @@ defmodule Ecto.Adapters.Neo4j.Cql.Node do
     WITH
       n AS n
     LIMIT
-      {limit}
+      $limit
     DETACH DELETE
       n
     RETURN

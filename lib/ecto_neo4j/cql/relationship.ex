@@ -8,12 +8,12 @@ defmodule Ecto.Adapters.Neo4j.Cql.Relationship do
 
   ### Example
 
-      iex> where = "n0.uuid = {uuid}"
+      iex> where = "n0.uuid = $uuid"
       iex> Ecto.Adapters.Neo4j.Cql.Relationhip.get_related("User", "Post", where)
       "MATCH
         (n0:User)-[rel]->(n:Post)
       WHERE
-        n0.uuid = {uuid}
+        n0.uuid = $uuid
       RETURN
         COLLECT(rel) AS relationships, n
     "
